@@ -1,0 +1,130 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --nhs-blue: #005EB8;
+  --nhs-blue-dark: #003d7a;
+  --nhs-green: #009639;
+  --nhs-aqua: #00A9CE;
+  --off-white: #F0F4F9;
+  --border: #D8E0E8;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  background-color: var(--off-white);
+  color: #425563;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Star rating animations */
+@keyframes starPop {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
+
+.star-pop {
+  animation: starPop 0.2s ease;
+}
+
+/* Pulse loading skeleton */
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #e8eef5 25%, #f4f7fb 50%, #e8eef5 75%);
+  background-size: 800px 100%;
+  animation: shimmer 1.4s infinite linear;
+  border-radius: 6px;
+}
+
+/* Focus visible ring */
+:focus-visible {
+  outline: 3px solid var(--nhs-blue);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Smooth transitions */
+button, a {
+  transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease, color 0.15s ease;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #c8d4df; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #a0b0c0; }
+
+/* Line clamp utility */
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Print styles */
+@media print {
+  /* Hide all navigation */
+  aside,
+  .no-print,
+  header.bg-nhs-blue {
+    display: none !important;
+  }
+
+  /* Remove sidebar offset */
+  main {
+    margin-left: 0 !important;
+    padding-top: 0 !important;
+  }
+
+  body {
+    background: white !important;
+    color: #000 !important;
+  }
+
+  /* Show print-only elements */
+  .print-only {
+    display: block !important;
+  }
+
+  /* Prevent page breaks inside cards */
+  .bg-white {
+    break-inside: avoid;
+    box-shadow: none !important;
+    border: 1px solid #D8E0E8 !important;
+    border-radius: 8px !important;
+  }
+
+  /* Ensure full width */
+  .max-w-3xl,
+  .max-w-5xl,
+  .max-w-7xl {
+    max-width: 100% !important;
+  }
+
+  .p-6, .p-8, .lg\:p-8 {
+    padding: 12px !important;
+  }
+
+  a { color: inherit; text-decoration: none; }
+}
+
+/* Hidden on screen, visible in print */
+.print-only { display: none; }
