@@ -4,11 +4,13 @@ import { useEffect, useState } from "react";
 import { dashApi } from "@/app/lib/api";
 import { getUser, setUser } from "@/app/lib/auth";
 
+// External feedback platforms. "feedbacker" = built-in form (no URL needed).
 const PLATFORMS = [
-  { value: "google",   label: "Google Business Profile", prefix: "https://g.page/r/" },
-  { value: "nhs",      label: "NHS Website",              prefix: "https://www.nhs.uk/" },
-  { value: "practice", label: "Practice Website",         prefix: "https://" },
-  { value: "custom",   label: "Custom URL",               prefix: "https://" },
+  { value: "feedbacker", label: "No — use Feedbacker's built-in form" },
+  { value: "14fish",     label: "14Fish" },
+  { value: "clarity",    label: "Clarity" },
+  { value: "nhs_fft",   label: "NHS Friends & Family Test (FFT)" },
+  { value: "other",      label: "Other" },
 ];
 
 function QrCode({ value, size = 200 }: { value: string; size?: number }) {
@@ -20,25 +22,31 @@ function QrCode({ value, size = 200 }: { value: string; size?: number }) {
 export default function SettingsPage() {
   const localUser = getUser();
 
-  // Redirect URL state
-  const [platform, setPlatform]   = useState("google");
+  // Feedback platform + redirect URL state
+  const [platform, setPlatform]    = useState("feedbacker");
   const [redirectUrl, setRedirect] = useState(localUser?.redirect_url ?? "");
-  const [saving, setSaving]       = useState(false);
-  const [saveMsg, setSaveMsg]     = useState("");
-  const [saveErr, setSaveErr]     = useState("");
+  const [saving, setSaving]        = useState(false);
+  const [saveMsg, setSaveMsg]      = useState("");
+  const [saveErr, setSaveErr]      = useState("");
 
-  // Survey URL for QR code
+  // QR code URL — prefer permanent practice URL, fall back to direct clinician link
   const clinicianId = localUser?.clinician_id ?? "";
+  const practiceId  = localUser?.practice_id  ?? "";
   const [origin, setOrigin] = useState("");
   useEffect(() => { setOrigin(window.location.origin); }, []);
-  const surveyUrl = clinicianId ? `${origin}/survey?id=${clinicianId}` : "";
+  const surveyUrl = practiceId
+    ? `${origin}/p/${practiceId}`
+    : clinicianId
+    ? `${origin}/survey?id=${clinicianId}`
+    : "";
 
   // Load current settings from server
   useEffect(() => {
     dashApi.getMe().then(async (res) => {
       if (!res.ok) return;
       const data = await res.json();
-      if (data.redirect_url) setRedirect(data.redirect_url);
+      if (data.redirect_url)      setRedirect(data.redirect_url);
+      if (data.redirect_platform) setPlatform(data.redirect_platform);
     });
   }, []);
 
@@ -48,14 +56,15 @@ export default function SettingsPage() {
     setSaveMsg("");
     setSaveErr("");
     try {
-      const res = await dashApi.updateRedirectUrl(redirectUrl);
+      // If "use Feedbacker" is selected, clear the redirect URL
+      const urlToSave = platform === "feedbacker" ? "" : redirectUrl.trim();
+      const res = await dashApi.updateRedirectUrl(urlToSave, platform);
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body?.message ?? `Failed (${res.status})`);
       }
       setSaveMsg("Saved successfully!");
-      // Update local user cache
-      if (localUser) setUser({ ...localUser, redirect_url: redirectUrl });
+      if (localUser) setUser({ ...localUser, redirect_url: urlToSave });
       setTimeout(() => setSaveMsg(""), 3000);
     } catch (err: unknown) {
       setSaveErr(err instanceof Error ? err.message : "Something went wrong");
@@ -119,24 +128,28 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      {/* Redirect URL */}
+      {/* Feedback Platform */}
       <div className="bg-white rounded-2xl shadow-card p-6">
-        <h2 className="text-base font-semibold text-nhs-blue-dark mb-1">Post-Survey Redirect</h2>
+        <h2 className="text-base font-semibold text-nhs-blue-dark mb-1">
+          Feedback Platform
+        </h2>
         <p className="text-sm text-slate-light mb-5">
-          Where patients are sent after submitting their feedback.
+          Do you use an external feedback platform? Patients will be sent here
+          after scanning your QR code.
         </p>
 
         <form onSubmit={handleSave} className="space-y-4">
+          {/* Platform picker */}
           <div className="space-y-1">
-            <label className="block text-xs font-semibold text-slate">Platform</label>
+            <label className="block text-xs font-semibold text-slate">
+              Which platform do you use?
+            </label>
             <select
               value={platform}
               onChange={(e) => {
                 setPlatform(e.target.value);
-                const p = PLATFORMS.find((p) => p.value === e.target.value);
-                if (p && !redirectUrl.startsWith(p.prefix)) {
-                  setRedirect(p.prefix);
-                }
+                // Clear URL when switching to built-in
+                if (e.target.value === "feedbacker") setRedirect("");
               }}
               className="w-full rounded-lg border border-border bg-off-white px-3.5 py-2.5 text-sm text-slate focus:outline-none focus:ring-2 focus:ring-nhs-blue transition"
             >
@@ -146,24 +159,33 @@ export default function SettingsPage() {
             </select>
           </div>
 
-          <div className="space-y-1">
-            <label className="block text-xs font-semibold text-slate">
-              Redirect URL <span className="text-nhs-red">*</span>
-            </label>
-            <input
-              type="url"
-              value={redirectUrl}
-              onChange={(e) => setRedirect(e.target.value)}
-              placeholder="https://g.page/r/your-google-review-link"
-              required
-              className="w-full rounded-lg border border-border bg-off-white px-3.5 py-2.5 text-sm text-slate placeholder-slate-light/60 focus:outline-none focus:ring-2 focus:ring-nhs-blue transition"
-            />
-            {platform === "google" && (
+          {/* URL input — only shown when using an external platform */}
+          {platform !== "feedbacker" && (
+            <div className="space-y-1">
+              <label className="block text-xs font-semibold text-slate">
+                Paste your feedback form link
+              </label>
+              <input
+                type="url"
+                value={redirectUrl}
+                onChange={(e) => setRedirect(e.target.value)}
+                placeholder="https://your-platform.com/your-form"
+                required
+                className="w-full rounded-lg border border-border bg-off-white px-3.5 py-2.5 text-sm text-slate placeholder-slate-light/60 focus:outline-none focus:ring-2 focus:ring-nhs-blue transition"
+              />
               <p className="text-xs text-slate-light">
-                Find your Google review link in Google Business Profile → Get more reviews.
+                Patients are redirected here after leaving a quick comment.
               </p>
-            )}
-          </div>
+            </div>
+          )}
+
+          {/* Feedbacker built-in notice */}
+          {platform === "feedbacker" && (
+            <div className="bg-nhs-blue/5 border border-nhs-blue/20 rounded-xl px-4 py-3 text-sm text-nhs-blue-dark">
+              Patients will use Feedbacker&apos;s built-in feedback form.
+              No external link needed.
+            </div>
+          )}
 
           {saveMsg && (
             <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-sm text-nhs-green font-medium">
@@ -181,17 +203,22 @@ export default function SettingsPage() {
             disabled={saving}
             className="w-full bg-nhs-blue text-white font-semibold py-3 rounded-xl hover:bg-nhs-blue-dark active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed transition-all shadow-md"
           >
-            {saving ? "Saving…" : "Save Redirect URL"}
+            {saving ? "Saving…" : "Save Settings"}
           </button>
         </form>
       </div>
 
       {/* QR Code */}
       <div className="bg-white rounded-2xl shadow-card p-6">
-        <h2 className="text-base font-semibold text-nhs-blue-dark mb-1">Your Survey QR Code</h2>
-        <p className="text-sm text-slate-light mb-5">
-          This QR code links patients directly to your personalised feedback form.
+        <h2 className="text-base font-semibold text-nhs-blue-dark mb-1">Your Practice QR Code</h2>
+        <p className="text-sm text-slate-light mb-2">
+          This is your permanent practice QR code — never needs reprinting.
         </p>
+        {practiceId && (
+          <p className="text-xs text-nhs-green font-medium mb-5">
+            ✓ Points to the currently active clinician — automatically updates when your rotation changes.
+          </p>
+        )}
 
         {surveyUrl ? (
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
@@ -200,22 +227,30 @@ export default function SettingsPage() {
             </div>
             <div className="space-y-3 flex-1">
               <div>
-                <p className="text-xs text-slate-light mb-1">Survey link:</p>
+                <p className="text-xs text-slate-light mb-1">Permanent link:</p>
                 <code className="block text-xs bg-off-white border border-border rounded-lg px-3 py-2 text-nhs-blue-dark break-all">
                   {surveyUrl}
                 </code>
               </div>
-              <div>
-                <p className="text-xs text-slate-light mb-1">Your clinician ID:</p>
-                <code className="text-xs font-mono text-nhs-blue-dark bg-off-white border border-border rounded px-2 py-1">
-                  {clinicianId}
-                </code>
-              </div>
+              {!practiceId && clinicianId && (
+                <p className="text-xs text-amber-600">
+                  ⚠️ No practice ID found — showing your personal clinician link instead.
+                  Ask your Practice Manager to link your account.
+                </p>
+              )}
+              {practiceId && (
+                <div>
+                  <p className="text-xs text-slate-light mb-1">Practice ID:</p>
+                  <code className="text-xs font-mono text-nhs-blue-dark bg-off-white border border-border rounded px-2 py-1">
+                    {practiceId}
+                  </code>
+                </div>
+              )}
             </div>
           </div>
         ) : (
           <div className="text-sm text-slate-light py-6 text-center">
-            Clinician ID not set. Contact your practice manager.
+            No practice or clinician ID found. Contact your Practice Manager.
           </div>
         )}
       </div>

@@ -1,73 +1,64 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
 import { surveyApi } from "@/app/lib/api";
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-interface ClinicianInfo {
+interface ActiveClinician {
+  clinician_id: string;
   clinician_name: string;
   practice_name: string;
-  redirect_url: string;
   google_review_url?: string;
-  redirect_platform?: string;
+  redirect_url?: string;
 }
 
-// ─── Main wrapper (Suspense required for useSearchParams) ─────────────────────
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function SurveyPage() {
-  return (
-    <Suspense fallback={<FullPageSpinner />}>
-      <SurveyInner />
-    </Suspense>
-  );
-}
+export default function PracticeLandingPage({
+  params,
+}: {
+  params: { practice_id: string };
+}) {
+  const { practice_id } = params;
 
-// ─── Inner page ───────────────────────────────────────────────────────────────
-
-function SurveyInner() {
-  const params      = useSearchParams();
-  const clinicianId = params.get("id") ?? "";
-
-  const [info, setInfo]               = useState<ClinicianInfo | null>(null);
+  const [info, setInfo]               = useState<ActiveClinician | null>(null);
   const [loadErr, setLoadErr]         = useState("");
   const [loading, setLoading]         = useState(true);
-
   const [comment, setComment]         = useState("");
   const [showButtons, setShowButtons] = useState(false);
 
-  // ── Fetch clinician info ──────────────────────────────────────────────────
+  // ── Fetch active clinician ────────────────────────────────────────────────
   const fetchInfo = useCallback(async () => {
-    if (!clinicianId) {
-      setLoadErr("No clinician ID provided.");
+    if (!practice_id) {
+      setLoadErr("Invalid practice link.");
       setLoading(false);
       return;
     }
     try {
-      const res  = await surveyApi.getClinicianInfo(clinicianId);
+      const res  = await surveyApi.getActiveClinician(practice_id);
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.message ?? "Clinician not found.");
+      if (!res.ok) throw new Error(data?.message ?? "Practice not found.");
+      if (!data?.clinician_name) throw new Error("No active clinician set for this practice.");
       setInfo(data);
     } catch (e: unknown) {
-      setLoadErr(e instanceof Error ? e.message : "Could not load clinician info.");
+      setLoadErr(e instanceof Error ? e.message : "Could not load practice info.");
     } finally {
       setLoading(false);
     }
-  }, [clinicianId]);
+  }, [practice_id]);
 
   useEffect(() => { fetchInfo(); }, [fetchInfo]);
 
-  // Reveal buttons as soon as they type anything
+  // Show buttons as soon as they type
   useEffect(() => {
     if (comment.trim().length > 0) setShowButtons(true);
   }, [comment]);
 
-  // ── Navigation + fire-and-forget feedback POST ────────────────────────────
+  // ── Navigation + fire-and-forget POST ────────────────────────────────────
   function navigate(url: string, newTab: boolean) {
-    if (comment.trim()) {
-      surveyApi.createQuickFeedback(clinicianId, comment.trim()).catch(() => {});
+    if (info?.clinician_id && comment.trim()) {
+      surveyApi.createQuickFeedback(info.clinician_id, comment.trim()).catch(() => {});
     }
     if (newTab) {
       window.open(url, "_blank", "noopener,noreferrer");
@@ -82,14 +73,14 @@ function SurveyInner() {
   }
 
   function handleFeedbackForm() {
-    const dest = info?.redirect_url?.trim()
+    if (!info) return;
+    const dest = info.redirect_url?.trim()
       ? info.redirect_url
-      : `/feedback?id=${encodeURIComponent(clinicianId)}`;
-    // external links open in new tab; built-in form is same tab
-    navigate(dest, !!info?.redirect_url?.trim());
+      : `/feedback?id=${encodeURIComponent(info.clinician_id)}`;
+    navigate(dest, !!info.redirect_url?.trim());
   }
 
-  // ── Loading / error states ────────────────────────────────────────────────
+  // ── Loading / error ───────────────────────────────────────────────────────
   if (loading) return <FullPageSpinner />;
 
   if (loadErr || !info) {
@@ -98,7 +89,7 @@ function SurveyInner() {
         <div className="bg-white rounded-2xl shadow-card p-8 text-center space-y-3">
           <div className="text-3xl">⚠️</div>
           <p className="text-sm font-semibold text-slate">
-            {loadErr || "Clinician not found."}
+            {loadErr || "Practice not found."}
           </p>
           <p className="text-xs text-slate-light">
             Please check the QR code or link you used.
@@ -139,7 +130,6 @@ function SurveyInner() {
           className="w-full rounded-xl border border-border bg-off-white px-4 py-3 text-sm text-slate placeholder-slate-light/60 resize-none focus:outline-none focus:ring-2 focus:ring-nhs-blue focus:border-transparent transition"
         />
 
-        {/* Skip — visible until they've typed or skipped */}
         {!showButtons && (
           <button
             type="button"
@@ -150,7 +140,6 @@ function SurveyInner() {
           </button>
         )}
 
-        {/* Confirmation once comment saved */}
         {showButtons && comment.trim() && (
           <p className="text-xs text-nhs-green font-medium">
             ✓ Your comment has been saved
@@ -158,7 +147,7 @@ function SurveyInner() {
         )}
       </div>
 
-      {/* ── Action buttons — shown after typing or skip ──────────────── */}
+      {/* ── Action buttons ───────────────────────────────────────────── */}
       {showButtons && (
         <div className="space-y-3">
           {hasGoogle && (
@@ -207,7 +196,6 @@ function PageShell({ children }: { children: React.ReactNode }) {
           NHS Patient Feedback
         </span>
       </header>
-
       <main className="flex-1 flex flex-col items-center px-4 py-6">
         <div className="w-full max-w-sm space-y-4">{children}</div>
       </main>

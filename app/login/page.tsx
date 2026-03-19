@@ -50,7 +50,9 @@ export default function LoginPage() {
           password,
           role,
           account_type: accountType,
-          practice_id: practiceId,
+          // Only include practice_id if the user entered one.
+          // Solo GPs with no practice manager leave this blank.
+          ...(practiceId.trim() ? { practice_id: practiceId.trim() } : {}),
         });
       }
 
@@ -150,12 +152,16 @@ export default function LoginPage() {
                     </select>
                   </Field>
 
-                  <Field label="Practice ID" hint="Provided by your Practice Manager">
+                  <Field
+                    label="Practice ID"
+                    hint="Optional — leave blank if you're a solo GP. Your Practice Manager can provide this later."
+                    optional
+                  >
                     <input
                       type="text"
                       value={practiceId}
                       onChange={(e) => setPracticeId(e.target.value)}
-                      placeholder="e.g. PRAC-001"
+                      placeholder="e.g. PRAC-001 (optional)"
                       className={inputCls}
                     />
                   </Field>
@@ -247,18 +253,25 @@ function Field({
   label,
   hint,
   required,
+  optional,
   children,
 }: {
   label: string;
   hint?: string;
   required?: boolean;
+  optional?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-1">
-      <label className="block text-xs font-semibold text-slate">
+      <label className="flex items-center gap-1.5 text-xs font-semibold text-slate">
         {label}
-        {required && <span className="text-nhs-red ml-0.5">*</span>}
+        {required && <span className="text-nhs-red">*</span>}
+        {optional && (
+          <span className="text-[10px] font-normal text-slate-light bg-slate-100 px-1.5 py-0.5 rounded-full">
+            optional
+          </span>
+        )}
       </label>
       {children}
       {hint && <p className="text-xs text-slate-light">{hint}</p>}
