@@ -28,7 +28,6 @@ export default function LoginPage() {
   const [name, setName]               = useState("");
   const [role, setRole]               = useState<"clinician" | "practice_manager">("clinician");
   const [accountType, setAccountType] = useState("gp");
-  const [practiceId, setPracticeId]   = useState("");
 
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
@@ -50,9 +49,6 @@ export default function LoginPage() {
           password,
           role,
           account_type: accountType,
-          // Only include practice_id if the user entered one.
-          // Solo GPs with no practice manager leave this blank.
-          ...(practiceId.trim() ? { practice_id: practiceId.trim() } : {}),
         });
       }
 
@@ -70,8 +66,10 @@ export default function LoginPage() {
       setToken(token);
 
       // 2. Immediately fetch the full profile from /auth/me.
+      // skipRedirect=true: if /auth/me returns 401 here, don't wipe the token
+      // we just stored — fall back to minimal user info and continue to dashboard.
       try {
-        const meRes = await authApi.getMe();
+        const meRes = await authApi.getMe(true);
         if (meRes.ok) {
           const profile = await meRes.json();
           setUser(profile);
@@ -167,19 +165,6 @@ export default function LoginPage() {
                     </select>
                   </Field>
 
-                  <Field
-                    label="Practice ID"
-                    hint="Optional — leave blank if you're a solo GP. Your Practice Manager can provide this later."
-                    optional
-                  >
-                    <input
-                      type="text"
-                      value={practiceId}
-                      onChange={(e) => setPracticeId(e.target.value)}
-                      placeholder="e.g. PRAC-001 (optional)"
-                      className={inputCls}
-                    />
-                  </Field>
                 </>
               )}
 

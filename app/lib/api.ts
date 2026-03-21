@@ -87,7 +87,6 @@ export const authApi = {
     password: string;
     role: string;
     account_type: string;
-    practice_id?: string;
   }) =>
     apiFetch(
       `${AUTH_API}/auth/signup`,
