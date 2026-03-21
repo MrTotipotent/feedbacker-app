@@ -12,6 +12,11 @@ const SURVEY_API =
   process.env.NEXT_PUBLIC_XANO_SURVEY_API ??
   "https://xtw2-xdvy-nt5f.e2.xano.io/api:tkq1OGP7";
 
+// Practice management endpoints live in a separate Xano API group
+const PRACTICE_API =
+  process.env.NEXT_PUBLIC_XANO_PRACTICE_API ??
+  "https://xtw2-xdvy-nt5f.e2.xano.io/api:MlgfxZN";
+
 async function apiFetch(
   url: string,
   options: RequestInit = {},
@@ -136,7 +141,7 @@ export const dashApi = {
     }),
 
   updateGoogleReviewUrl: (practice_id: string | number, google_review_url: string) =>
-    apiFetch(`${DASH_API}/practice/update_google_review_url`, {
+    apiFetch(`${PRACTICE_API}/practice/update_google_review_url`, {
       method: "PATCH",
       body: JSON.stringify({ practice_id, google_review_url }),
     }),
@@ -147,7 +152,7 @@ export const dashApi = {
     clinician_id: string,
     rotation_end_date: string
   ) =>
-    apiFetch(`${DASH_API}/practice/set_active_clinician`, {
+    apiFetch(`${PRACTICE_API}/practice/set_active_clinician`, {
       method: "PATCH",
       body: JSON.stringify({ practice_id, clinician_id, rotation_end_date }),
     }),
