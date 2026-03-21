@@ -12,7 +12,11 @@ const SURVEY_API =
   process.env.NEXT_PUBLIC_XANO_SURVEY_API ??
   "https://xtw2-xdvy-nt5f.e2.xano.io/api:tkq1OGP7";
 
-async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
+async function apiFetch(
+  url: string,
+  options: RequestInit = {},
+  skipAuthRedirect = false
+): Promise<Response> {
   const token = getToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -20,9 +24,15 @@ async function apiFetch(url: string, options: RequestInit = {}): Promise<Respons
   };
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
+  // Debug: log outgoing request body
+  if (options.body) {
+    console.log("[apiFetch]", options.method ?? "GET", url, JSON.parse(options.body as string));
+  }
+
   const res = await fetch(url, { ...options, headers });
 
-  if (res.status === 401) {
+  // Only redirect to /login on 401 for protected routes, not for auth endpoints themselves
+  if (res.status === 401 && !skipAuthRedirect) {
     clearAuth();
     if (typeof window !== "undefined") window.location.href = "/login";
   }
@@ -65,10 +75,11 @@ export const surveyApi = {
 
 export const authApi = {
   login: (email: string, password: string) =>
-    apiFetch(`${AUTH_API}/auth/login`, {
-      method: "POST",
-      body: JSON.stringify({ email, password }),
-    }),
+    apiFetch(
+      `${AUTH_API}/auth/login`,
+      { method: "POST", body: JSON.stringify({ email, password }) },
+      true  // don't redirect on 401 — let the login page show the error
+    ),
 
   signup: (data: {
     name: string;
@@ -78,23 +89,32 @@ export const authApi = {
     account_type: string;
     practice_id?: string;
   }) =>
-    apiFetch(`${AUTH_API}/auth/signup`, {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
+    apiFetch(
+      `${AUTH_API}/auth/signup`,
+      { method: "POST", body: JSON.stringify(data) },
+      true  // don't redirect on 401 — let the login page show the error
+    ),
 
-  /** Fetches the full authenticated user profile from Xano's auth table. */
-  getMe: () => apiFetch(`${AUTH_API}/auth/me`),
+  /** Fetches the full authenticated user profile from Xano's auth table.
+   *  Pass skipRedirect=true in the login flow so a 401 doesn't wipe the
+   *  just-stored token before the page can handle it gracefully. */
+  getMe: (skipRedirect = false) =>
+    apiFetch(`${AUTH_API}/auth/me`, {}, skipRedirect),
 };
 
 // ─── Dashboard / protected endpoints ─────────────────────────────────────────
 
+// Path prefix used by dashboard endpoints in Xano.
+// If your Xano endpoints are /get_me (no prefix), set this to "".
+// If your Xano endpoints are /dashboard/get_me, set this to "/dashboard".
+const DASH_PREFIX = ""; // Xano endpoints are at root: /get_me, /get_reviews etc.
+
 export const dashApi = {
-  getMe: () => apiFetch(`${DASH_API}/dashboard/get_me`),
+  getMe: () => apiFetch(`${DASH_API}${DASH_PREFIX}/get_me`),
 
-  getPractice: () => apiFetch(`${DASH_API}/dashboard/get_practice`),
+  getPractice: () => apiFetch(`${DASH_API}${DASH_PREFIX}/get_practice`),
 
-  getReviews: () => apiFetch(`${DASH_API}/dashboard/get_reviews`),
+  getReviews: () => apiFetch(`${DASH_API}${DASH_PREFIX}/get_reviews`),
 
   getCqc: (params?: { from?: string; to?: string }) => {
     const q = new URLSearchParams(
@@ -105,10 +125,10 @@ export const dashApi = {
     return apiFetch(`${DASH_API}/reports/get_cqc${q ? `?${q}` : ""}`);
   },
 
-  getAppraisal: () => apiFetch(`${DASH_API}/dashboard/get_appraisal`),
+  getAppraisal: () => apiFetch(`${DASH_API}${DASH_PREFIX}/get_appraisal`),
 
   updateRedirectUrl: (redirect_url: string, redirect_platform?: string) =>
-    apiFetch(`${DASH_API}/dashboard/update_redirect_url`, {
+    apiFetch(`${DASH_API}${DASH_PREFIX}/update_redirect_url`, {
       method: "PATCH",
       body: JSON.stringify({
         redirect_url,
