@@ -62,14 +62,29 @@ export default function LoginPage() {
         throw new Error(data?.message ?? `Request failed (${res.status})`);
       }
 
-      // Xano returns { authToken, user }
+      // Xano login/signup returns { authToken, user_id } — no profile fields.
       const token = data.authToken ?? data.token;
-      const user  = data.user ?? data;
-
       if (!token) throw new Error("No auth token received");
 
+      // 1. Store token first so apiFetch can attach it.
       setToken(token);
-      setUser(user);
+
+      // 2. Immediately fetch the full profile from /auth/me.
+      try {
+        const meRes = await authApi.getMe();
+        if (meRes.ok) {
+          const profile = await meRes.json();
+          setUser(profile);
+        } else {
+          // /auth/me failed (e.g. profile not yet created) — store minimal info
+          // so the dashboard can show the setup-needed state.
+          setUser({ id: data.user_id, email });
+        }
+      } catch {
+        // Network error — store minimal info and continue.
+        setUser({ id: data.user_id, email });
+      }
+
       router.replace("/dashboard");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong");

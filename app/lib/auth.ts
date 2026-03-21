@@ -1,15 +1,21 @@
 const TOKEN_KEY = "fb_token";
 const USER_KEY  = "fb_user";
 
+// Flexible enough to hold whatever Xano's /auth/me returns,
+// while keeping autocomplete for the known fields we use.
 export interface StoredUser {
-  id: number;
-  name: string;
-  email: string;
-  role: "clinician" | "practice_manager";
+  id?: number;
+  name?: string;
+  email?: string;
+  role?: "clinician" | "practice_manager" | string;
+  account_type?: string;
   clinician_id?: string;
-  practice_id?: number;
+  practice_id?: number | string;
   practice_name?: string;
   redirect_url?: string;
+  redirect_platform?: string;
+  // Allow any extra fields Xano sends back
+  [key: string]: unknown;
 }
 
 export const getToken = (): string | null => {

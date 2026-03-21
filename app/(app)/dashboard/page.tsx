@@ -97,6 +97,36 @@ export default function DashboardPage() {
   if (loading) return <PageSkeleton />;
   if (error)   return <ErrorMsg msg={error} />;
 
+  // get_me returned 404 — profile record not yet created in Xano.
+  // This happens when the auth signup hasn't been linked to a profile table yet.
+  if (!me) return (
+    <div className="p-6 lg:p-8 max-w-lg">
+      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-8 text-center space-y-3">
+        <div className="text-4xl">⏳</div>
+        <h2 className="text-lg font-bold text-amber-800">Account created — profile setup needed</h2>
+        <p className="text-sm text-amber-700">
+          Your login works, but your clinician profile hasn&apos;t been created in the database yet.
+          This is a one-time Xano setup step.
+        </p>
+        <div className="bg-white border border-amber-200 rounded-xl p-4 text-left text-xs text-slate space-y-2 mt-2">
+          <p className="font-semibold text-amber-800">Fix in Xano — auth/signup function stack:</p>
+          <ol className="list-decimal list-inside space-y-1 text-slate">
+            <li>Open Xano → API Groups → Auth → <code className="bg-amber-100 px-1 rounded">POST /auth/signup</code></li>
+            <li>After the &quot;Create User&quot; step, add <strong>Create Record</strong> on your profile/users table</li>
+            <li>Map: <code className="bg-amber-100 px-1 rounded">name</code>, <code className="bg-amber-100 px-1 rounded">email</code>, <code className="bg-amber-100 px-1 rounded">role</code>, <code className="bg-amber-100 px-1 rounded">account_type</code>, <code className="bg-amber-100 px-1 rounded">user_id</code> (from the created auth user)</li>
+            <li>Also add: auto-generate <code className="bg-amber-100 px-1 rounded">clinician_id</code> = <code className="bg-amber-100 px-1 rounded">CLI-</code> + random 6-digit number</li>
+          </ol>
+        </div>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-2 text-sm font-semibold text-amber-700 underline underline-offset-2 hover:text-amber-900"
+        >
+          Refresh after fixing →
+        </button>
+      </div>
+    </div>
+  );
+
   const scores = me?.scores ?? {};
   const overallAvg =
     me?.avg_overall ??

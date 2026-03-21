@@ -82,6 +82,9 @@ export const authApi = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  /** Fetches the full authenticated user profile from Xano's auth table. */
+  getMe: () => apiFetch(`${AUTH_API}/auth/me`),
 };
 
 // ─── Dashboard / protected endpoints ─────────────────────────────────────────
