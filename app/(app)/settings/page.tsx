@@ -29,6 +29,12 @@ export default function SettingsPage() {
   const [saveMsg, setSaveMsg]      = useState("");
   const [saveErr, setSaveErr]      = useState("");
 
+  // Google Review URL state
+  const [googleReviewUrl, setGoogleReviewUrl] = useState("");
+  const [savingGoogle, setSavingGoogle]         = useState(false);
+  const [googleSaveMsg, setGoogleSaveMsg]       = useState("");
+  const [googleSaveErr, setGoogleSaveErr]       = useState("");
+
   // Practice details state
   const [practiceName, setPracticeName] = useState(localUser?.practice_name ?? "");
   const [odsCode, setOdsCode]           = useState(localUser?.ods_code as string ?? "");
@@ -47,7 +53,7 @@ export default function SettingsPage() {
     ? `${origin}/survey?id=${clinicianId}`
     : "";
 
-  // Load current settings from server
+  // Load redirect + platform settings from get_me
   useEffect(() => {
     dashApi.getMe().then(async (res) => {
       if (!res.ok) return;
@@ -55,6 +61,17 @@ export default function SettingsPage() {
       if (data.redirect_url)      setRedirect(data.redirect_url);
       if (data.redirect_platform) setPlatform(data.redirect_platform);
     });
+  }, []);
+
+  // Load google_review_url from practice record
+  useEffect(() => {
+    dashApi.getPractice().then(async (res) => {
+      if (!res.ok) return;
+      const data = await res.json();
+      // getPractice returns { practice: {...}, clinicians: [...] }
+      const url = data?.practice?.google_review_url ?? data?.google_review_url ?? "";
+      if (url) setGoogleReviewUrl(url);
+    }).catch(() => {});
   }, []);
 
   async function handleSave(e: React.FormEvent) {
@@ -77,6 +94,28 @@ export default function SettingsPage() {
       setSaveErr(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleGoogleSave(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingGoogle(true);
+    setGoogleSaveMsg("");
+    setGoogleSaveErr("");
+    try {
+      const pid = localUser?.practice_id;
+      if (!pid) throw new Error("No practice ID found on your account. Contact your Practice Manager.");
+      const res = await dashApi.updateGoogleReviewUrl(pid, googleReviewUrl.trim());
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { message?: string })?.message ?? `Failed (${res.status})`);
+      }
+      setGoogleSaveMsg("Saved!");
+      setTimeout(() => setGoogleSaveMsg(""), 3000);
+    } catch (err: unknown) {
+      setGoogleSaveErr(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setSavingGoogle(false);
     }
   }
 
@@ -229,6 +268,48 @@ export default function SettingsPage() {
             className="w-full bg-nhs-blue text-white font-semibold py-3 rounded-xl hover:bg-nhs-blue-dark active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed transition-all shadow-md"
           >
             {saving ? "Saving…" : "Save Settings"}
+          </button>
+        </form>
+      </div>
+
+      {/* Google Review URL */}
+      <div className="bg-white rounded-2xl shadow-card p-6">
+        <h2 className="text-base font-semibold text-nhs-blue-dark mb-1">Google Review URL</h2>
+        <p className="text-sm text-slate-light mb-5">
+          Patients will be directed here to leave a public Google review after their appointment.
+        </p>
+
+        <form onSubmit={handleGoogleSave} className="space-y-4">
+          <div className="space-y-1">
+            <label className="block text-xs font-semibold text-slate">
+              Google Review link
+            </label>
+            <input
+              type="url"
+              value={googleReviewUrl}
+              onChange={(e) => setGoogleReviewUrl(e.target.value)}
+              placeholder="https://g.page/r/your-practice-review-link"
+              className="w-full rounded-lg border border-border bg-off-white px-3.5 py-2.5 text-sm text-slate placeholder-slate-light/60 focus:outline-none focus:ring-2 focus:ring-nhs-blue transition"
+            />
+          </div>
+
+          {googleSaveMsg && (
+            <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-sm text-nhs-green font-medium">
+              ✅ {googleSaveMsg}
+            </div>
+          )}
+          {googleSaveErr && (
+            <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700">
+              {googleSaveErr}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={savingGoogle}
+            className="w-full bg-nhs-blue text-white font-semibold py-3 rounded-xl hover:bg-nhs-blue-dark active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed transition-all shadow-md"
+          >
+            {savingGoogle ? "Saving…" : "Save Google Review URL"}
           </button>
         </form>
       </div>

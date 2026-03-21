@@ -135,6 +135,12 @@ export const dashApi = {
       }),
     }),
 
+  updateGoogleReviewUrl: (practice_id: string | number, google_review_url: string) =>
+    apiFetch(`${DASH_API}/practice/update_google_review_url`, {
+      method: "PATCH",
+      body: JSON.stringify({ practice_id, google_review_url }),
+    }),
+
   /** PM only — sets which clinician is currently active for the practice QR */
   setActiveClinicianRotation: (
     practice_id: string,
