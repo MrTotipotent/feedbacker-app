@@ -13,6 +13,8 @@ interface ActiveClinician {
   redirect_url?: string;
 }
 
+type Step = 1 | 2;
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PracticeLandingPage({
@@ -22,11 +24,12 @@ export default function PracticeLandingPage({
 }) {
   const { practice_id } = params;
 
-  const [info, setInfo]               = useState<ActiveClinician | null>(null);
-  const [loadErr, setLoadErr]         = useState("");
-  const [loading, setLoading]         = useState(true);
-  const [comment, setComment]         = useState("");
-  const [showButtons, setShowButtons] = useState(false);
+  const [info, setInfo]       = useState<ActiveClinician | null>(null);
+  const [loadErr, setLoadErr] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  const [step, setStep]           = useState<Step>(1);
+  const [sentiment, setSentiment] = useState("");
 
   // ── Fetch active clinician ────────────────────────────────────────────────
   const fetchInfo = useCallback(async () => {
@@ -50,34 +53,27 @@ export default function PracticeLandingPage({
 
   useEffect(() => { fetchInfo(); }, [fetchInfo]);
 
-  // Show buttons as soon as they type
-  useEffect(() => {
-    if (comment.trim().length > 0) setShowButtons(true);
-  }, [comment]);
-
-  // ── Navigation + fire-and-forget POST ────────────────────────────────────
-  function navigate(url: string, newTab: boolean) {
-    if (info?.clinician_id && comment.trim()) {
-      surveyApi.createQuickFeedback(info.clinician_id, comment.trim()).catch(() => {});
+  // ── Continue from Step 1 → Step 2 ────────────────────────────────────────
+  function handleContinue() {
+    // Fire-and-forget save the sentiment comment
+    if (info?.clinician_id && sentiment.trim()) {
+      surveyApi.createQuickFeedback(info.clinician_id, sentiment.trim()).catch(() => {});
     }
-    if (newTab) {
-      window.open(url, "_blank", "noopener,noreferrer");
-    } else {
-      window.location.href = url;
-    }
+    setStep(2);
   }
 
+  // ── Button destinations ───────────────────────────────────────────────────
   function handleGoogle() {
     if (!info?.google_review_url) return;
-    navigate(info.google_review_url, true);
+    window.open(info.google_review_url, "_blank", "noopener,noreferrer");
   }
 
   function handleFeedbackForm() {
     if (!info) return;
     const dest = info.redirect_url?.trim()
       ? info.redirect_url
-      : `/feedback?id=${encodeURIComponent(info.clinician_id)}`;
-    navigate(dest, !!info.redirect_url?.trim());
+      : `/survey?id=${encodeURIComponent(info.clinician_id)}`;
+    window.open(dest, "_blank", "noopener,noreferrer");
   }
 
   // ── Loading / error ───────────────────────────────────────────────────────
@@ -99,86 +95,126 @@ export default function PracticeLandingPage({
     );
   }
 
-  const hasGoogle = !!info.google_review_url;
+  const hasGoogle   = !!info.google_review_url?.trim();
+  const hasFeedback = !!info.redirect_url?.trim() || !!info.clinician_id;
 
+  // ── Step 1 — Sentiment ────────────────────────────────────────────────────
+  if (step === 1) {
+    return (
+      <PageShell>
+        <div
+          key="step1"
+          className="animate-in fade-in slide-in-from-bottom-4 duration-300 space-y-6"
+        >
+          {/* Heading */}
+          <div className="text-center space-y-2 pt-2">
+            <h1 className="text-xl font-bold text-nhs-blue-dark leading-snug">
+              How would you describe your experience with{" "}
+              <span className="text-nhs-blue">{info.clinician_name}</span> today?
+            </h1>
+          </div>
+
+          {/* Input card */}
+          <div className="bg-white rounded-2xl shadow-card p-6 space-y-4">
+            <textarea
+              value={sentiment}
+              onChange={(e) => setSentiment(e.target.value)}
+              placeholder="Describe in one sentence..."
+              rows={3}
+              autoFocus
+              className="w-full rounded-xl border border-border bg-off-white px-4 py-3 text-sm text-slate placeholder-slate-light/60 resize-none focus:outline-none focus:ring-2 focus:ring-nhs-blue focus:border-transparent transition"
+            />
+
+            <button
+              type="button"
+              onClick={handleContinue}
+              disabled={sentiment.trim().length < 3}
+              className="w-full bg-nhs-blue text-white font-semibold py-4 rounded-2xl hover:bg-nhs-blue-dark active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md text-base"
+            >
+              Continue →
+            </button>
+          </div>
+
+          <p className="text-center text-xs text-slate-light pb-2">
+            🔒 Anonymous · Takes 30 seconds
+          </p>
+        </div>
+      </PageShell>
+    );
+  }
+
+  // ── Step 2 — Two Big Buttons ──────────────────────────────────────────────
   return (
     <PageShell>
-      {/* ── Clinician card ───────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl shadow-card p-6 text-center space-y-1">
-        <div className="w-14 h-14 rounded-full bg-nhs-blue/10 flex items-center justify-center mx-auto mb-3">
-          <span className="text-2xl">🩺</span>
-        </div>
-        <p className="text-xs font-semibold uppercase tracking-widest text-slate-light">
-          You saw
-        </p>
-        <h1 className="text-xl font-bold text-nhs-blue-dark">
-          {info.clinician_name}
-        </h1>
-        <p className="text-sm text-slate-light">{info.practice_name}</p>
-      </div>
-
-      {/* ── One-liner input ──────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl shadow-card p-6 space-y-3">
-        <label className="block text-sm font-semibold text-nhs-blue-dark">
-          How was your appointment in one sentence?
-        </label>
-        <textarea
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
-          placeholder="e.g. Very thorough and reassuring"
-          rows={2}
-          className="w-full rounded-xl border border-border bg-off-white px-4 py-3 text-sm text-slate placeholder-slate-light/60 resize-none focus:outline-none focus:ring-2 focus:ring-nhs-blue focus:border-transparent transition"
-        />
-
-        {!showButtons && (
-          <button
-            type="button"
-            onClick={() => setShowButtons(true)}
-            className="text-xs text-slate-light hover:text-nhs-blue transition underline underline-offset-2"
-          >
-            Skip this step →
-          </button>
-        )}
-
-        {showButtons && comment.trim() && (
-          <p className="text-xs text-nhs-green font-medium">
-            ✓ Your comment has been saved
+      <div
+        key="step2"
+        className="animate-in fade-in slide-in-from-bottom-4 duration-300 space-y-6"
+      >
+        {/* Heading */}
+        <div className="text-center space-y-1 pt-2">
+          <p className="text-xs font-semibold uppercase tracking-widest text-slate-light">
+            Thank you! 🎉
           </p>
-        )}
-      </div>
+          <h1 className="text-xl font-bold text-nhs-blue-dark leading-snug">
+            Let others know,{" "}
+            <span className="text-nhs-blue">{info.clinician_name}</span>&apos;s
+            patients are talking!
+          </h1>
+        </div>
 
-      {/* ── Action buttons ───────────────────────────────────────────── */}
-      {showButtons && (
-        <div className="space-y-3">
-          {hasGoogle && (
+        {/* Buttons card */}
+        <div className="bg-white rounded-2xl shadow-card p-6 space-y-4">
+          {/* Button 1 — Google review */}
+          {hasGoogle ? (
             <button
+              type="button"
               onClick={handleGoogle}
-              className="w-full flex items-center justify-center gap-3 bg-nhs-blue text-white font-semibold py-4 px-6 rounded-2xl hover:bg-nhs-blue-dark active:scale-[0.98] transition-all shadow-md text-sm"
+              className="w-full flex flex-col items-center justify-center gap-1.5 bg-nhs-blue text-white font-semibold py-5 px-6 rounded-2xl hover:bg-nhs-blue-dark active:scale-[0.98] transition-all shadow-md text-center"
             >
-              <span className="text-lg leading-none">⭐</span>
-              Review {info.clinician_name} on Google
+              <span className="text-2xl leading-none">⭐</span>
+              <span className="text-sm leading-snug">
+                Let others know! Leave{" "}
+                <span className="font-bold">{info.clinician_name}</span> a public
+                Google review
+              </span>
             </button>
+          ) : (
+            <p className="text-center text-xs text-slate-light py-2">
+              Google Reviews not set up yet for this practice.
+            </p>
           )}
 
-          <button
-            onClick={handleFeedbackForm}
-            className={`w-full flex items-center justify-center gap-3 font-semibold py-4 px-6 rounded-2xl active:scale-[0.98] transition-all text-sm ${
-              hasGoogle
-                ? "border-2 border-nhs-blue text-nhs-blue bg-white hover:bg-nhs-blue/5 shadow-sm"
-                : "bg-nhs-blue text-white hover:bg-nhs-blue-dark shadow-md"
-            }`}
-          >
-            <span className="text-lg leading-none">📋</span>
-            Complete {info.clinician_name}&apos;s Feedback Form
-          </button>
-        </div>
-      )}
+          {/* Divider */}
+          {hasGoogle && hasFeedback && (
+            <div className="flex items-center gap-3">
+              <div className="flex-1 border-t border-border" />
+              <span className="text-xs text-slate-light">or</span>
+              <div className="flex-1 border-t border-border" />
+            </div>
+          )}
 
-      {/* ── Footer ──────────────────────────────────────────────────── */}
-      <p className="text-center text-xs text-slate-light pb-4">
-        🔒 Anonymous · Takes 30 seconds · Powered by{" "}
-        <span className="font-semibold text-nhs-blue">Feedbacker</span>
-      </p>
+          {/* Button 2 — Feedback form */}
+          {hasFeedback && (
+            <button
+              type="button"
+              onClick={handleFeedbackForm}
+              className="w-full flex flex-col items-center justify-center gap-1.5 border-2 border-nhs-blue text-nhs-blue bg-white font-semibold py-5 px-6 rounded-2xl hover:bg-nhs-blue/5 active:scale-[0.98] transition-all text-center"
+            >
+              <span className="text-2xl leading-none">📋</span>
+              <span className="text-sm leading-snug">
+                Complete a feedback form for{" "}
+                <span className="font-bold">{info.clinician_name}</span> — needed
+                for their professional development
+              </span>
+            </button>
+          )}
+        </div>
+
+        <p className="text-center text-xs text-slate-light pb-2">
+          🔒 Anonymous · Powered by{" "}
+          <span className="font-semibold text-nhs-blue">Feedbacker</span>
+        </p>
+      </div>
     </PageShell>
   );
 }
@@ -196,8 +232,8 @@ function PageShell({ children }: { children: React.ReactNode }) {
           NHS Patient Feedback
         </span>
       </header>
-      <main className="flex-1 flex flex-col items-center px-4 py-6">
-        <div className="w-full max-w-sm space-y-4">{children}</div>
+      <main className="flex-1 flex flex-col items-center px-4 py-8">
+        <div className="w-full max-w-sm">{children}</div>
       </main>
     </div>
   );
