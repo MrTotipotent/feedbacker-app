@@ -29,6 +29,13 @@ export default function SettingsPage() {
   const [saveMsg, setSaveMsg]      = useState("");
   const [saveErr, setSaveErr]      = useState("");
 
+  // Practice details state
+  const [practiceName, setPracticeName] = useState(localUser?.practice_name ?? "");
+  const [odsCode, setOdsCode]           = useState(localUser?.ods_code as string ?? "");
+  const [savingPractice, setSavingPractice] = useState(false);
+  const [practiceSaveMsg, setPracticeSaveMsg] = useState("");
+  const [practiceSaveErr, setPracticeSaveErr] = useState("");
+
   // QR code URL — prefer permanent practice URL, fall back to direct clinician link
   const clinicianId = localUser?.clinician_id ?? "";
   const practiceId  = localUser?.practice_id  ?? "";
@@ -70,6 +77,24 @@ export default function SettingsPage() {
       setSaveErr(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handlePracticeSave(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingPractice(true);
+    setPracticeSaveMsg("");
+    setPracticeSaveErr("");
+    try {
+      // TODO: wire up to Xano PATCH endpoint when ready
+      // const res = await dashApi.updatePracticeDetails(practiceName.trim(), odsCode.trim());
+      // if (!res.ok) { const body = await res.json().catch(() => ({})); throw new Error(body?.message ?? `Failed (${res.status})`); }
+      throw new Error("Xano endpoint not yet connected — add it in api.ts then uncomment above.");
+    } catch (err: unknown) {
+      setPracticeSaveErr(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setSavingPractice(false);
+      setTimeout(() => { setPracticeSaveMsg(""); setPracticeSaveErr(""); }, 4000);
     }
   }
 
@@ -204,6 +229,66 @@ export default function SettingsPage() {
             className="w-full bg-nhs-blue text-white font-semibold py-3 rounded-xl hover:bg-nhs-blue-dark active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed transition-all shadow-md"
           >
             {saving ? "Saving…" : "Save Settings"}
+          </button>
+        </form>
+      </div>
+
+      {/* Practice Details */}
+      <div className="bg-white rounded-2xl shadow-card p-6">
+        <h2 className="text-base font-semibold text-nhs-blue-dark mb-1">Practice Details</h2>
+        <p className="text-sm text-slate-light mb-5">
+          Enter your GP surgery details. Your ODS code can be found on your NHS contract
+          or by asking your Practice Manager.
+        </p>
+
+        <form onSubmit={handlePracticeSave} className="space-y-4">
+          <div className="space-y-1">
+            <label className="block text-xs font-semibold text-slate">
+              Practice Name
+            </label>
+            <input
+              type="text"
+              value={practiceName}
+              onChange={(e) => setPracticeName(e.target.value)}
+              placeholder="e.g. Hockley Farm Surgery"
+              className="w-full rounded-lg border border-border bg-off-white px-3.5 py-2.5 text-sm text-slate placeholder-slate-light/60 focus:outline-none focus:ring-2 focus:ring-nhs-blue transition"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="block text-xs font-semibold text-slate">
+              Practice Code <span className="text-slate-light font-normal">(ODS code)</span>
+            </label>
+            <input
+              type="text"
+              value={odsCode}
+              onChange={(e) => setOdsCode(e.target.value.toUpperCase())}
+              placeholder="e.g. C82053"
+              maxLength={10}
+              className="w-full rounded-lg border border-border bg-off-white px-3.5 py-2.5 text-sm text-slate placeholder-slate-light/60 font-mono focus:outline-none focus:ring-2 focus:ring-nhs-blue transition"
+            />
+            <p className="text-xs text-slate-light">
+              Your unique NHS ODS code identifies your practice across NHS systems.
+            </p>
+          </div>
+
+          {practiceSaveMsg && (
+            <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-sm text-nhs-green font-medium">
+              ✅ {practiceSaveMsg}
+            </div>
+          )}
+          {practiceSaveErr && (
+            <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700">
+              {practiceSaveErr}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={savingPractice}
+            className="w-full bg-nhs-blue text-white font-semibold py-3 rounded-xl hover:bg-nhs-blue-dark active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed transition-all shadow-md"
+          >
+            {savingPractice ? "Saving…" : "Save Practice Details"}
           </button>
         </form>
       </div>
