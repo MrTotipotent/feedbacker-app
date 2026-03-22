@@ -40,7 +40,7 @@ const EMPTY_RATINGS: Ratings = {
 // ─── Star icon ────────────────────────────────────────────────────────────────
 
 function StarIcon({ filled, hovered }: { filled: boolean; hovered: boolean }) {
-  const color = filled ? "#00A9CE" : hovered ? "#7dd3e8" : "#CBD5E1";
+  const color = filled ? "#F59E0B" : hovered ? "#FCD34D" : "#CBD5E1";
   return (
     <svg
       width="28" height="28" viewBox="0 0 24 24"
@@ -108,7 +108,6 @@ function SurveyInner() {
 
   const [ratings,          setRatings]          = useState<Ratings>(EMPTY_RATINGS);
   const [clinicianComment, setClinicianComment] = useState("");
-  const [shareConsent,     setShareConsent]      = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [submitted,  setSubmitted]  = useState(false);
@@ -149,7 +148,7 @@ function SurveyInner() {
         clinician_id:      clinicianId,
         ...ratings,
         clinician_comment: clinicianComment.trim() || null,
-        google_consent:    shareConsent,
+        google_consent:    false,
         practice_rating:   null,
         practice_comment:  null,
       };
@@ -299,27 +298,6 @@ function SurveyInner() {
             className="w-full rounded-xl border border-border bg-off-white px-4 py-3 text-sm text-slate placeholder-slate-light/70 resize-none focus:outline-none focus:ring-2 focus:ring-nhs-blue focus:border-transparent transition"
           />
 
-          {/* Consent checkbox */}
-          <label className="flex items-start gap-3 cursor-pointer group">
-            <div className="relative flex-shrink-0 mt-0.5">
-              <input
-                type="checkbox"
-                checked={shareConsent}
-                onChange={(e) => setShareConsent(e.target.checked)}
-                className="peer sr-only"
-              />
-              <div className="w-4.5 h-4.5 w-[18px] h-[18px] rounded border-2 border-border bg-white peer-checked:bg-nhs-blue peer-checked:border-nhs-blue transition-all flex items-center justify-center">
-                {shareConsent && (
-                  <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                    <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                )}
-              </div>
-            </div>
-            <span className="text-xs text-slate leading-relaxed group-hover:text-slate-700 transition-colors">
-              Check this box to also use these comments for the public practice review below
-            </span>
-          </label>
         </div>
 
         {/* ── Error ───────────────────────────────────────────────────────── */}
