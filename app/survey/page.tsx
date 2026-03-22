@@ -146,11 +146,11 @@ function SurveyInner() {
     try {
       const payload: Record<string, unknown> = {
         clinician_id:      clinicianId,
-        ...ratings,
+        ...Object.fromEntries(
+          Object.entries(ratings).map(([k, v]) => [k, Number(v)])
+        ),
         clinician_comment: clinicianComment.trim() || null,
         google_consent:    false,
-        practice_rating:   null,
-        practice_comment:  null,
       };
       const res = await surveyApi.createSubmission(payload);
       if (!res.ok) {
