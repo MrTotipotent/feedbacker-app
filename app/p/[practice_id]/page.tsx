@@ -188,7 +188,7 @@ export default function PracticeLandingPage({
           {hasGoogle && hasFeedback && (
             <div className="flex items-center gap-3">
               <div className="flex-1 border-t border-border" />
-              <span className="text-xs text-slate-light">or</span>
+              <span className="text-xs text-slate-light">then</span>
               <div className="flex-1 border-t border-border" />
             </div>
           )}
