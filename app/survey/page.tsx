@@ -10,6 +10,7 @@ import { surveyApi } from "@/app/lib/api";
 interface ClinicianInfo {
   clinician_name: string;
   practice_name: string;
+  practices_id: number;
   google_review_url?: string;
 }
 
@@ -146,6 +147,7 @@ function SurveyInner() {
     try {
       const payload: Record<string, unknown> = {
         clinician_id:      clinicianId,
+        practices_id:      Number(info.practices_id),
         ...Object.fromEntries(
           Object.entries(ratings).map(([k, v]) => [k, Number(v)])
         ),
