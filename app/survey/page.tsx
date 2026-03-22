@@ -142,6 +142,7 @@ function SurveyInner() {
 
   // ── Submit ────────────────────────────────────────────────────────────────
   async function handleSubmit() {
+    if (!info) return;
     setSubmitErr("");
     setSubmitting(true);
     try {
