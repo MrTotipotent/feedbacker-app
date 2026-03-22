@@ -10,7 +10,6 @@ import { surveyApi } from "@/app/lib/api";
 interface ClinicianInfo {
   clinician_name: string;
   practice_name: string;
-  practices_id: number;
   google_review_url?: string;
 }
 
@@ -124,6 +123,7 @@ function SurveyInner() {
     try {
       const res  = await surveyApi.getClinicianInfo(clinicianId);
       const data = await res.json();
+      console.log("[get_clinician_info] response:", data);
       if (!res.ok) throw new Error(data?.message ?? "Clinician not found.");
       setInfo(data);
     } catch (e: unknown) {
@@ -148,7 +148,6 @@ function SurveyInner() {
     try {
       const payload: Record<string, unknown> = {
         clinician_id:      clinicianId,
-        practices_id:      Number(info.practices_id),
         ...Object.fromEntries(
           Object.entries(ratings).map(([k, v]) => [k, Number(v)])
         ),
