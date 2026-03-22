@@ -150,7 +150,6 @@ function SurveyInner() {
           Object.entries(ratings).map(([k, v]) => [k, Number(v)])
         ),
         clinician_comment: clinicianComment.trim() || null,
-        google_consent:    false,
       };
       const res = await surveyApi.createSubmission(payload);
       if (!res.ok) {
