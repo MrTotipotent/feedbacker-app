@@ -11,6 +11,7 @@ interface ActiveClinician {
   practice_name: string;
   google_review_url?: string;
   redirect_url?: string;
+  redirect_platform?: string;
 }
 
 type Step = 1 | 2;
@@ -70,9 +71,11 @@ export default function PracticeLandingPage({
 
   function handleFeedbackForm() {
     if (!info) return;
-    const dest = info.redirect_url?.trim()
-      ? info.redirect_url
-      : `/survey?id=${encodeURIComponent(info.clinician_id)}`;
+    const useInternalSurvey =
+      info.redirect_platform === "feedbacker" || !info.redirect_url?.trim();
+    const dest = useInternalSurvey
+      ? `/survey?id=${encodeURIComponent(info.clinician_id)}`
+      : info.redirect_url!;
     window.open(dest, "_blank", "noopener,noreferrer");
   }
 
