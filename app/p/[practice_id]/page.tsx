@@ -71,11 +71,11 @@ export default function PracticeLandingPage({
 
   function handleFeedbackForm() {
     if (!info) return;
-    const useInternalSurvey =
-      info.redirect_platform === "feedbacker" || !info.redirect_url?.trim();
-    const dest = useInternalSurvey
-      ? `/survey?id=${encodeURIComponent(info.clinician_id)}`
-      : info.redirect_url!;
+    // Only use redirect_url for genuine external URLs; everything else → built-in survey
+    const isExternal = info.redirect_url?.trim().startsWith("http");
+    const dest = isExternal
+      ? info.redirect_url!
+      : `/survey?id=${encodeURIComponent(info.clinician_id)}`;
     window.open(dest, "_blank", "noopener,noreferrer");
   }
 

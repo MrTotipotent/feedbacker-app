@@ -10,10 +10,34 @@ import { surveyApi } from "@/app/lib/api";
 interface ClinicianInfo {
   clinician_name: string;
   practice_name: string;
-  redirect_url: string;
   google_review_url?: string;
-  redirect_platform?: string;
 }
+
+type Ratings = {
+  ease: number;
+  listening: number;
+  involving: number;
+  explaining: number;
+  empathy: number;
+  confidence: number;
+  trust: number;
+  futureplan: number;
+  escalation: number;
+  recommendation: number;
+};
+
+const QUESTIONS: { key: keyof Ratings; label: string }[] = [
+  { key: "ease",           label: "Getting an appointment was easy" },
+  { key: "listening",      label: "The clinician listened to me" },
+  { key: "involving",      label: "I was involved in decisions about my care" },
+  { key: "explaining",     label: "Things were explained clearly" },
+  { key: "empathy",        label: "I felt understood and cared for" },
+  { key: "confidence",     label: "I have confidence in this clinician" },
+  { key: "trust",          label: "I trust this clinician with my health" },
+  { key: "futureplan",     label: "I have a clear plan for what to do next" },
+  { key: "escalation",     label: "I know when to seek urgent help" },
+  { key: "recommendation", label: "I would recommend this clinician" },
+];
 
 // ─── Main wrapper (Suspense required for useSearchParams) ─────────────────────
 
@@ -31,12 +55,24 @@ function SurveyInner() {
   const params      = useSearchParams();
   const clinicianId = params.get("id") ?? "";
 
-  const [info, setInfo]               = useState<ClinicianInfo | null>(null);
-  const [loadErr, setLoadErr]         = useState("");
-  const [loading, setLoading]         = useState(true);
+  const [info, setInfo]       = useState<ClinicianInfo | null>(null);
+  const [loadErr, setLoadErr] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  const [comment, setComment]         = useState("");
-  const [showButtons, setShowButtons] = useState(false);
+  // Ratings — 0 = unanswered
+  const [ratings, setRatings] = useState<Ratings>({
+    ease: 0, listening: 0, involving: 0, explaining: 0, empathy: 0,
+    confidence: 0, trust: 0, futureplan: 0, escalation: 0, recommendation: 0,
+  });
+
+  const [clinicianComment, setClinicianComment] = useState("");
+  const [googleConsent,    setGoogleConsent]    = useState(false);
+  const [practiceRating,   setPracticeRating]   = useState(0);
+  const [practiceComment,  setPracticeComment]  = useState("");
+
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted,  setSubmitted]  = useState(false);
+  const [submitErr,  setSubmitErr]  = useState("");
 
   // ── Fetch clinician info ──────────────────────────────────────────────────
   const fetchInfo = useCallback(async () => {
@@ -59,37 +95,38 @@ function SurveyInner() {
 
   useEffect(() => { fetchInfo(); }, [fetchInfo]);
 
-  // Reveal buttons as soon as they type anything
-  useEffect(() => {
-    if (comment.trim().length > 0) setShowButtons(true);
-  }, [comment]);
-
-  // ── Navigation + fire-and-forget feedback POST ────────────────────────────
-  function navigate(url: string, newTab: boolean) {
-    if (comment.trim()) {
-      surveyApi.createQuickFeedback(clinicianId, comment.trim()).catch(() => {});
+  // ── Submit ────────────────────────────────────────────────────────────────
+  async function handleSubmit() {
+    const unanswered = QUESTIONS.filter((q) => ratings[q.key] === 0);
+    if (unanswered.length > 0) {
+      setSubmitErr("Please answer all questions before submitting.");
+      return;
     }
-    if (newTab) {
-      window.open(url, "_blank", "noopener,noreferrer");
-    } else {
-      window.location.href = url;
+    setSubmitErr("");
+    setSubmitting(true);
+    try {
+      const payload: Record<string, unknown> = {
+        clinician_id:      clinicianId,
+        ...ratings,
+        clinician_comment: clinicianComment.trim() || null,
+        google_consent:    googleConsent,
+        practice_rating:   practiceRating || null,
+        practice_comment:  practiceComment.trim() || null,
+      };
+      const res = await surveyApi.createSubmission(payload);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.message ?? `Submission failed (${res.status})`);
+      }
+      setSubmitted(true);
+    } catch (e: unknown) {
+      setSubmitErr(e instanceof Error ? e.message : "Something went wrong. Please try again.");
+    } finally {
+      setSubmitting(false);
     }
   }
 
-  function handleGoogle() {
-    if (!info?.google_review_url) return;
-    navigate(info.google_review_url, true);
-  }
-
-  function handleFeedbackForm() {
-    const dest = info?.redirect_url?.trim()
-      ? info.redirect_url
-      : `/feedback?id=${encodeURIComponent(clinicianId)}`;
-    // external links open in new tab; built-in form is same tab
-    navigate(dest, !!info?.redirect_url?.trim());
-  }
-
-  // ── Loading / error states ────────────────────────────────────────────────
+  // ── Loading / error ───────────────────────────────────────────────────────
   if (loading) return <FullPageSpinner />;
 
   if (loadErr || !info) {
@@ -108,88 +145,184 @@ function SurveyInner() {
     );
   }
 
-  const hasGoogle = !!info.google_review_url;
+  // ── Thank-you screen ──────────────────────────────────────────────────────
+  if (submitted) {
+    return (
+      <PageShell>
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-300 space-y-5">
+          <div className="bg-white rounded-2xl shadow-card p-8 text-center space-y-3">
+            <div className="text-4xl">🎉</div>
+            <h1 className="text-xl font-bold text-nhs-blue-dark">
+              Thank you for your feedback!
+            </h1>
+            <p className="text-sm text-slate-light">
+              Your response helps {info.clinician_name} improve patient care.
+            </p>
+          </div>
 
-  return (
-    <PageShell>
-      {/* ── Clinician card ───────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl shadow-card p-6 text-center space-y-1">
-        <div className="w-14 h-14 rounded-full bg-nhs-blue/10 flex items-center justify-center mx-auto mb-3">
-          <span className="text-2xl">🩺</span>
-        </div>
-        <p className="text-xs font-semibold uppercase tracking-widest text-slate-light">
-          You saw
-        </p>
-        <h1 className="text-xl font-bold text-nhs-blue-dark">
-          {info.clinician_name}
-        </h1>
-        <p className="text-sm text-slate-light">{info.practice_name}</p>
-      </div>
-
-      {/* ── One-liner input ──────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl shadow-card p-6 space-y-3">
-        <label className="block text-sm font-semibold text-nhs-blue-dark">
-          How was your appointment in one sentence?
-        </label>
-        <textarea
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
-          placeholder="e.g. Very thorough and reassuring"
-          rows={2}
-          className="w-full rounded-xl border border-border bg-off-white px-4 py-3 text-sm text-slate placeholder-slate-light/60 resize-none focus:outline-none focus:ring-2 focus:ring-nhs-blue focus:border-transparent transition"
-        />
-
-        {/* Skip — visible until they've typed or skipped */}
-        {!showButtons && (
-          <button
-            type="button"
-            onClick={() => setShowButtons(true)}
-            className="text-xs text-slate-light hover:text-nhs-blue transition underline underline-offset-2"
-          >
-            Skip this step →
-          </button>
-        )}
-
-        {/* Confirmation once comment saved */}
-        {showButtons && comment.trim() && (
-          <p className="text-xs text-nhs-green font-medium">
-            ✓ Your comment has been saved
-          </p>
-        )}
-      </div>
-
-      {/* ── Action buttons — shown after typing or skip ──────────────── */}
-      {showButtons && (
-        <div className="space-y-3">
-          {hasGoogle && (
+          {info.google_review_url && (
             <button
-              onClick={handleGoogle}
-              className="w-full flex items-center justify-center gap-3 bg-nhs-blue text-white font-semibold py-4 px-6 rounded-2xl hover:bg-nhs-blue-dark active:scale-[0.98] transition-all shadow-md text-sm"
+              type="button"
+              onClick={() => window.open(info.google_review_url, "_blank", "noopener,noreferrer")}
+              className="w-full flex flex-col items-center justify-center gap-1.5 bg-nhs-blue text-white font-semibold py-5 px-6 rounded-2xl hover:bg-nhs-blue-dark active:scale-[0.98] transition-all shadow-md text-center"
             >
-              <span className="text-lg leading-none">⭐</span>
-              Review {info.clinician_name} on Google
+              <span className="text-2xl leading-none">⭐</span>
+              <span className="text-sm leading-snug">
+                Help others — leave a public Google review too
+              </span>
             </button>
           )}
 
-          <button
-            onClick={handleFeedbackForm}
-            className={`w-full flex items-center justify-center gap-3 font-semibold py-4 px-6 rounded-2xl active:scale-[0.98] transition-all text-sm ${
-              hasGoogle
-                ? "border-2 border-nhs-blue text-nhs-blue bg-white hover:bg-nhs-blue/5 shadow-sm"
-                : "bg-nhs-blue text-white hover:bg-nhs-blue-dark shadow-md"
-            }`}
-          >
-            <span className="text-lg leading-none">📋</span>
-            Complete {info.clinician_name}&apos;s Feedback Form
-          </button>
+          <p className="text-center text-xs text-slate-light pb-2">
+            🔒 Anonymous · Powered by{" "}
+            <span className="font-semibold text-nhs-blue">Feedbacker</span>
+          </p>
         </div>
-      )}
+      </PageShell>
+    );
+  }
 
-      {/* ── Footer ──────────────────────────────────────────────────── */}
-      <p className="text-center text-xs text-slate-light pb-4">
-        🔒 Anonymous · Takes 30 seconds · Powered by{" "}
-        <span className="font-semibold text-nhs-blue">Feedbacker</span>
-      </p>
+  // ── Survey form ───────────────────────────────────────────────────────────
+  const allAnswered = QUESTIONS.every((q) => ratings[q.key] > 0);
+
+  return (
+    <PageShell>
+      <div className="animate-in fade-in slide-in-from-bottom-4 duration-300 space-y-5">
+
+        {/* Clinician card */}
+        <div className="bg-white rounded-2xl shadow-card p-5 text-center space-y-1">
+          <div className="w-12 h-12 rounded-full bg-nhs-blue/10 flex items-center justify-center mx-auto mb-2">
+            <span className="text-2xl">🩺</span>
+          </div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-slate-light">
+            Feedback for
+          </p>
+          <h1 className="text-lg font-bold text-nhs-blue-dark">{info.clinician_name}</h1>
+          <p className="text-xs text-slate-light">{info.practice_name}</p>
+        </div>
+
+        {/* 10 rating questions */}
+        <div className="bg-white rounded-2xl shadow-card p-5 space-y-5">
+          <p className="text-xs font-semibold uppercase tracking-widest text-slate-light">
+            Rate your experience · 1 = Poor, 5 = Excellent
+          </p>
+
+          {QUESTIONS.map((q) => (
+            <div key={q.key} className="space-y-2">
+              <p className="text-sm font-medium text-slate leading-snug">{q.label}</p>
+              <div className="flex gap-2">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => setRatings((r) => ({ ...r, [q.key]: star }))}
+                    className={`flex-1 h-10 rounded-xl text-sm font-bold border-2 transition-all active:scale-95 ${
+                      ratings[q.key] === star
+                        ? "bg-nhs-blue border-nhs-blue text-white shadow-md"
+                        : ratings[q.key] > 0 && star <= ratings[q.key]
+                        ? "bg-nhs-blue/10 border-nhs-blue/30 text-nhs-blue"
+                        : "bg-off-white border-border text-slate-light hover:border-nhs-blue/40"
+                    }`}
+                  >
+                    {star}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Optional: clinician comment */}
+        <div className="bg-white rounded-2xl shadow-card p-5 space-y-3">
+          <p className="text-sm font-semibold text-nhs-blue-dark">
+            Any other comments? <span className="text-slate-light font-normal">(optional)</span>
+          </p>
+          <textarea
+            value={clinicianComment}
+            onChange={(e) => setClinicianComment(e.target.value)}
+            placeholder="e.g. Very thorough and reassuring"
+            rows={3}
+            className="w-full rounded-xl border border-border bg-off-white px-4 py-3 text-sm text-slate placeholder-slate-light/60 resize-none focus:outline-none focus:ring-2 focus:ring-nhs-blue focus:border-transparent transition"
+          />
+        </div>
+
+        {/* Optional: practice rating */}
+        <div className="bg-white rounded-2xl shadow-card p-5 space-y-3">
+          <p className="text-sm font-semibold text-nhs-blue-dark">
+            Overall practice rating <span className="text-slate-light font-normal">(optional)</span>
+          </p>
+          <div className="flex gap-2">
+            {[1, 2, 3, 4, 5].map((star) => (
+              <button
+                key={star}
+                type="button"
+                onClick={() => setPracticeRating((prev) => (prev === star ? 0 : star))}
+                className={`flex-1 h-10 rounded-xl text-sm font-bold border-2 transition-all active:scale-95 ${
+                  practiceRating === star
+                    ? "bg-nhs-blue border-nhs-blue text-white shadow-md"
+                    : practiceRating > 0 && star <= practiceRating
+                    ? "bg-nhs-blue/10 border-nhs-blue/30 text-nhs-blue"
+                    : "bg-off-white border-border text-slate-light hover:border-nhs-blue/40"
+                }`}
+              >
+                {star}
+              </button>
+            ))}
+          </div>
+          <textarea
+            value={practiceComment}
+            onChange={(e) => setPracticeComment(e.target.value)}
+            placeholder="Comments about the practice..."
+            rows={2}
+            className="w-full rounded-xl border border-border bg-off-white px-4 py-3 text-sm text-slate placeholder-slate-light/60 resize-none focus:outline-none focus:ring-2 focus:ring-nhs-blue focus:border-transparent transition"
+          />
+        </div>
+
+        {/* Google consent */}
+        {info.google_review_url && (
+          <label className="flex items-start gap-3 cursor-pointer bg-white rounded-2xl shadow-card p-5">
+            <input
+              type="checkbox"
+              checked={googleConsent}
+              onChange={(e) => setGoogleConsent(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-border text-nhs-blue focus:ring-nhs-blue"
+            />
+            <span className="text-sm text-slate leading-snug">
+              I&apos;m happy for my feedback to be used as a basis for a public Google review
+            </span>
+          </label>
+        )}
+
+        {/* Error */}
+        {submitErr && (
+          <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+            {submitErr}
+          </div>
+        )}
+
+        {/* Submit */}
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={submitting || !allAnswered}
+          className="w-full bg-nhs-blue text-white font-semibold py-4 rounded-2xl hover:bg-nhs-blue-dark active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md text-base"
+        >
+          {submitting ? (
+            <span className="flex items-center justify-center gap-2">
+              <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8z" />
+              </svg>
+              Submitting…
+            </span>
+          ) : "Submit Feedback"}
+        </button>
+
+        <p className="text-center text-xs text-slate-light pb-4">
+          🔒 Anonymous · Takes 30 seconds · Powered by{" "}
+          <span className="font-semibold text-nhs-blue">Feedbacker</span>
+        </p>
+      </div>
     </PageShell>
   );
 }
