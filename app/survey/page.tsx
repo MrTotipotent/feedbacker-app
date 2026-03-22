@@ -149,7 +149,7 @@ function SurveyInner() {
       const payload: Record<string, unknown> = {
         clinician_id:      clinicianId,
         ...Object.fromEntries(
-          Object.entries(ratings).map(([k, v]) => [k, Number(v)])
+          Object.entries(ratings).map(([k, v]) => [`score_${k}`, Number(v)])
         ),
         clinician_comment: clinicianComment.trim() || null,
       };
