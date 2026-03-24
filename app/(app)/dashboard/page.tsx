@@ -11,6 +11,7 @@ interface Submission {
   clinician_name?: string;
   created_at: string;
   comment_clinician?: string;
+  redirect_platform?: string | null;
   score_ease: number;
   score_listening: number;
   score_involving: number;
@@ -316,8 +317,12 @@ export default function DashboardPage() {
   const thisMonthCount = thisMonthSubs.length;
   const lastMonthCount = lastMonthSubs.length;
 
-  const avgOverall     = avg(submissions, "score_recommendation");
-  const uniqueClinicians = new Set(submissions.map((s) => s.clinician_id)).size;
+  // Avg Feedbacker Score = mean of all 10 dimensions across all submissions
+  const avgFeedbackerScore = (() => {
+    if (!submissions.length) return 0;
+    const dimAvgs = DIMENSIONS.map(({ key }) => avg(submissions, key));
+    return dimAvgs.reduce((a, b) => a + b, 0) / dimAvgs.length;
+  })();
 
   const mthChangePct   = monthChangePct(thisMonthCount, lastMonthCount);
   const mthChangeLabel =
@@ -353,8 +358,8 @@ export default function DashboardPage() {
     return (
       <div className="p-6 lg:p-8 space-y-6 max-w-7xl">
         <div className="h-14 rounded-[10px] bg-border/50 animate-pulse" />
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-          {Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={i} />)}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {Array.from({ length: 10 }).map((_, i) => <SkeletonCard key={i} h="h-36" />)}
@@ -385,40 +390,28 @@ export default function DashboardPage() {
   return (
     <div className="max-w-7xl">
 
-      {/* ── 1. Info banner (light gradient) ─────────────────────────────── */}
+      {/* ── 1. Info banner ───────────────────────────────────────────────── */}
       <div
-        className="mx-6 lg:mx-8 mt-6 px-5 py-3.5 rounded-[10px] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 mb-6"
+        className="mx-6 lg:mx-8 mt-6 mb-6 flex items-center gap-2 text-sm text-nhs-blue-dark font-medium"
         style={{
           background: "linear-gradient(90deg,#E3F2FD 0%,#F0F9FF 100%)",
           border: "1px solid #B3D9F5",
+          borderRadius: "8px",
+          padding: "11px 16px",
         }}
       >
-        <p className="text-sm font-medium text-nhs-blue-dark">
-          Showing all data for{" "}
-          <span className="font-bold">{practiceName}</span>
-        </p>
-        <p className="text-sm text-slate-light">
-          <span className="font-semibold text-nhs-blue-dark">{thisMonthCount}</span>{" "}
-          submissions this month
-          <span className="mx-2 text-border">·</span>
-          <span
-            className="font-semibold"
-            style={{
-              color: mthChangePct === null ? "#768692"
-                : mthChangePct >= 0 ? "#009639"
-                : "#E65C00",
-            }}
-          >
-            {mthChangeLabel}
-          </span>{" "}
-          vs last month
-        </p>
+        <span>ℹ️</span>
+        <span>
+          Showing all data for <strong>{practiceName}</strong>
+          {" "}—{" "}
+          <strong>{thisMonthCount}</strong> submission{thisMonthCount !== 1 ? "s" : ""} this month
+        </span>
       </div>
 
       <div className="px-6 lg:px-8 pb-10 space-y-8">
 
-        {/* ── 2. KPI cards ──────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        {/* ── 2. KPI cards (4) ──────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard
             label="Total Submissions"
             value={totalSubs}
@@ -427,32 +420,29 @@ export default function DashboardPage() {
             progress={Math.min(100, (totalSubs / Math.max(totalSubs, 50)) * 100)}
           />
           <KpiCard
-            label="Avg Overall Score"
-            value={avgOverall > 0 ? avgOverall.toFixed(1) : "—"}
-            sub={avgOverall > 0 ? "out of 5.0 ⭐" : "no data yet"}
+            label="Avg Feedbacker Score"
+            value={avgFeedbackerScore > 0 ? `${avgFeedbackerScore.toFixed(1)}/5.0 ⭐` : "—"}
+            sub="mean across all 10 dimensions"
             accent="#005EB8"
-            progress={avgOverall > 0 ? (avgOverall / 5) * 100 : 0}
+            progress={avgFeedbackerScore > 0 ? (avgFeedbackerScore / 5) * 100 : 0}
           />
           <KpiCard
-            label="Active Clinicians"
-            value={uniqueClinicians}
-            sub="in submissions"
-            accent="#00A9CE"
-            progress={Math.min(100, (uniqueClinicians / Math.max(uniqueClinicians, 10)) * 100)}
-          />
-          <KpiCard
-            label="CQC Threshold"
-            value={avgOverall >= 4.0 ? "✅ Met" : avgOverall > 0 ? "⚠️ Below" : "—"}
-            sub="Target: 4.0 / 5.0"
-            accent={avgOverall >= 4.0 ? "#009639" : "#E65C00"}
-            progress={avgOverall > 0 ? (avgOverall / 4) * 100 : 0}
-          />
-          <KpiCard
-            label="This Month"
+            label="Submissions This Month"
             value={thisMonthCount}
-            sub={`${mthChangeLabel} vs last month`}
+            sub={mthChangePct !== null
+              ? `${mthChangeLabel} vs last month`
+              : "no data last month"}
             accent="#003d7a"
-            progress={Math.min(100, totalSubs > 0 ? (thisMonthCount / totalSubs) * 100 * 3 : 0)}
+            progress={Math.min(100, totalSubs > 0 ? (thisMonthCount / Math.max(totalSubs, 1)) * 300 : 0)}
+          />
+          <KpiCard
+            label="Internal CQC Target — 4.0/5.0"
+            value={avgFeedbackerScore >= 4.0 ? "✅ Met" : avgFeedbackerScore > 0 ? "⚠️ Below Target" : "—"}
+            sub={avgFeedbackerScore > 0
+              ? `Score: ${avgFeedbackerScore.toFixed(1)} / target: 4.0`
+              : "no data yet"}
+            accent={avgFeedbackerScore >= 4.0 ? "#009639" : avgFeedbackerScore > 0 ? "#E65C00" : "#768692"}
+            progress={avgFeedbackerScore > 0 ? Math.min(100, (avgFeedbackerScore / 4) * 100) : 0}
           />
         </div>
 
@@ -534,10 +524,10 @@ export default function DashboardPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border bg-off-white">
-                      {["Date", "Clinician", "Overall", "Sentiment", ""].map((h, i) => (
+                      {["Date", "Clinician", "Platform", "Overall", "Sentiment", ""].map((h, i) => (
                         <th
                           key={i}
-                          className={`px-5 py-3 text-[11px] font-bold text-slate-light uppercase tracking-wider ${i < 4 ? "text-left" : ""}`}
+                          className={`px-5 py-3 text-[11px] font-bold text-slate-light uppercase tracking-wider ${i < 5 ? "text-left" : ""}`}
                         >
                           {h}
                         </th>
@@ -554,6 +544,18 @@ export default function DashboardPage() {
                         </td>
                         <td className="px-5 py-3.5 text-slate font-medium whitespace-nowrap">
                           {s.clinician_name ?? s.clinician_id}
+                        </td>
+                        <td className="px-5 py-3.5 whitespace-nowrap">
+                          <span
+                            className="inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full"
+                            style={
+                              (!s.redirect_platform || s.redirect_platform === "Feedbacker")
+                                ? { background: "#E3F2FD", color: "#005EB8" }
+                                : { background: "#F0F4F9", color: "#425563" }
+                            }
+                          >
+                            {s.redirect_platform || "Feedbacker"}
+                          </span>
                         </td>
                         <td className="px-5 py-3.5">
                           <StarBar score={s.score_recommendation ?? 0} />
