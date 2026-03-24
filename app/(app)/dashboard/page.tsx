@@ -282,8 +282,16 @@ export default function DashboardPage() {
   const [error, setError]             = useState("");
   const [filterClinician, setFilterClinician] = useState("all");
   const [selected, setSelected]       = useState<Submission | null>(null);
+  const [cqcTarget, setCqcTarget]     = useState<number>(4.0);
 
   useEffect(() => {
+    // Load CQC target from localStorage (set in Settings)
+    const stored = localStorage.getItem("cqc_target");
+    if (stored) {
+      const parsed = parseFloat(stored);
+      if (!isNaN(parsed)) setCqcTarget(parsed);
+    }
+
     async function load() {
       try {
         const [revRes, pracRes] = await Promise.all([
@@ -436,13 +444,13 @@ export default function DashboardPage() {
             progress={Math.min(100, totalSubs > 0 ? (thisMonthCount / Math.max(totalSubs, 1)) * 300 : 0)}
           />
           <KpiCard
-            label="Internal CQC Target — 4.0/5.0"
-            value={avgFeedbackerScore >= 4.0 ? "✅ Met" : avgFeedbackerScore > 0 ? "⚠️ Below Target" : "—"}
+            label={`Internal CQC Target — ${cqcTarget.toFixed(1)}/5.0`}
+            value={avgFeedbackerScore >= cqcTarget ? "✅ Met" : avgFeedbackerScore > 0 ? "⚠️ Below Target" : "—"}
             sub={avgFeedbackerScore > 0
-              ? `Score: ${avgFeedbackerScore.toFixed(1)} / target: 4.0`
+              ? `Score: ${avgFeedbackerScore.toFixed(1)} / target: ${cqcTarget.toFixed(1)}`
               : "no data yet"}
-            accent={avgFeedbackerScore >= 4.0 ? "#009639" : avgFeedbackerScore > 0 ? "#E65C00" : "#768692"}
-            progress={avgFeedbackerScore > 0 ? Math.min(100, (avgFeedbackerScore / 4) * 100) : 0}
+            accent={avgFeedbackerScore >= cqcTarget ? "#009639" : avgFeedbackerScore > 0 ? "#E65C00" : "#768692"}
+            progress={avgFeedbackerScore > 0 ? Math.min(100, (avgFeedbackerScore / cqcTarget) * 100) : 0}
           />
         </div>
 

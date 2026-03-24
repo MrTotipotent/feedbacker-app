@@ -29,6 +29,26 @@ export default function SettingsPage() {
   const [saveMsg, setSaveMsg]      = useState("");
   const [saveErr, setSaveErr]      = useState("");
 
+  // CQC Target state (localStorage only)
+  const [cqcTarget, setCqcTarget]       = useState<number>(4.0);
+  const [cqcSaveMsg, setCqcSaveMsg]     = useState("");
+
+  // Load CQC target from localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem("cqc_target");
+    if (stored) {
+      const parsed = parseFloat(stored);
+      if (!isNaN(parsed)) setCqcTarget(parsed);
+    }
+  }, []);
+
+  function handleCqcSave(e: React.FormEvent) {
+    e.preventDefault();
+    localStorage.setItem("cqc_target", String(cqcTarget));
+    setCqcSaveMsg("Saved!");
+    setTimeout(() => setCqcSaveMsg(""), 3000);
+  }
+
   // Google Review URL state
   const [googleReviewUrl, setGoogleReviewUrl] = useState("");
   const [savingGoogle, setSavingGoogle]         = useState(false);
@@ -268,6 +288,66 @@ export default function SettingsPage() {
             className="w-full bg-nhs-blue text-white font-semibold py-3 rounded-xl hover:bg-nhs-blue-dark active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed transition-all shadow-md"
           >
             {saving ? "Saving…" : "Save Settings"}
+          </button>
+        </form>
+      </div>
+
+      {/* CQC Target */}
+      <div className="bg-white rounded-2xl shadow-card p-6">
+        <h2 className="text-base font-semibold text-nhs-blue-dark mb-1">
+          Internal CQC Target
+        </h2>
+        <p className="text-sm text-slate-light mb-5">
+          Set your minimum acceptable average score. Used to determine CQC target
+          status on the dashboard.
+        </p>
+
+        <form onSubmit={handleCqcSave} className="space-y-4">
+          <div className="space-y-1">
+            <label className="block text-xs font-semibold text-slate">
+              Target score (out of 5.0)
+            </label>
+            <div className="flex items-center gap-3">
+              <input
+                type="number"
+                min={1}
+                max={5}
+                step={0.1}
+                value={cqcTarget}
+                onChange={(e) => setCqcTarget(parseFloat(e.target.value))}
+                className="w-28 rounded-lg border border-border bg-off-white px-3.5 py-2.5 text-sm text-slate font-semibold focus:outline-none focus:ring-2 focus:ring-nhs-blue transition"
+              />
+              <span className="text-sm text-slate-light">/ 5.0</span>
+              {/* Live status preview */}
+              <span
+                className="text-xs font-semibold px-2.5 py-1 rounded-full ml-auto"
+                style={
+                  cqcTarget <= 4.0
+                    ? { background: "#E8F5E9", color: "#009639" }
+                    : { background: "#FFF3E0", color: "#E65C00" }
+                }
+              >
+                {cqcTarget <= 3.0 ? "⚠️ Low target"
+                  : cqcTarget <= 4.5 ? "✅ Reasonable target"
+                  : "⭐ High target"}
+              </span>
+            </div>
+            <p className="text-xs text-slate-light">
+              NHS average is typically 4.0. The dashboard will show ✅ Met or ⚠️ Below Target accordingly.
+            </p>
+          </div>
+
+          {cqcSaveMsg && (
+            <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-sm text-nhs-green font-medium">
+              ✅ {cqcSaveMsg}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            className="w-full bg-nhs-blue text-white font-semibold py-3 rounded-xl hover:bg-nhs-blue-dark active:scale-[0.98] transition-all shadow-md"
+          >
+            Save CQC Target
           </button>
         </form>
       </div>
