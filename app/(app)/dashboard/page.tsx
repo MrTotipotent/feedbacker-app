@@ -344,6 +344,9 @@ export default function DashboardPage() {
     .filter((s) => filterClinician === "all" || s.clinician_id === filterClinician)
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
+  // Count shown after filter applied
+  const filteredCount = filtered.length;
+
   // ── Loading ─────────────────────────────────────────────────────────────
 
   if (loading) {
@@ -496,17 +499,26 @@ export default function DashboardPage() {
                 All responses — click View for full detail
               </p>
             </div>
-            <select
-              value={filterClinician}
-              onChange={(e) => setFilterClinician(e.target.value)}
-              className="text-sm border border-border rounded-lg px-3 py-2 bg-white text-slate focus:outline-none focus:ring-2 focus:ring-nhs-blue/30 focus:border-nhs-blue"
-              style={{ minWidth: 180 }}
-            >
-              <option value="all">All Clinicians</option>
-              {clinicianOptions.map(([id, name]) => (
-                <option key={id} value={id}>{name}</option>
-              ))}
-            </select>
+            {/* Filter bar + live count */}
+            <div className="flex items-center gap-3">
+              <span
+                className="text-sm font-semibold px-3 py-1.5 rounded-lg"
+                style={{ background: "#E3F2FD", color: "#005EB8" }}
+              >
+                {filteredCount} submission{filteredCount !== 1 ? "s" : ""}
+              </span>
+              <select
+                value={filterClinician}
+                onChange={(e) => setFilterClinician(e.target.value)}
+                className="text-sm border border-border rounded-lg px-3 py-2 bg-white text-slate focus:outline-none focus:ring-2 focus:ring-nhs-blue/30 focus:border-nhs-blue"
+                style={{ minWidth: 180 }}
+              >
+                <option value="all">All Clinicians</option>
+                {clinicianOptions.map(([id, name]) => (
+                  <option key={id} value={id}>{name}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div
@@ -522,7 +534,7 @@ export default function DashboardPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border bg-off-white">
-                      {["Date", "Clinician", "Overall", "Comment", ""].map((h, i) => (
+                      {["Date", "Clinician", "Overall", "Sentiment", ""].map((h, i) => (
                         <th
                           key={i}
                           className={`px-5 py-3 text-[11px] font-bold text-slate-light uppercase tracking-wider ${i < 4 ? "text-left" : ""}`}
@@ -546,11 +558,15 @@ export default function DashboardPage() {
                         <td className="px-5 py-3.5">
                           <StarBar score={s.score_recommendation ?? 0} />
                         </td>
-                        <td className="px-5 py-3.5 text-slate-light max-w-xs truncate">
+                        <td className="px-5 py-3.5 text-slate-light max-w-xs">
                           {s.comment_clinician
-                            ? s.comment_clinician.slice(0, 40) +
-                              (s.comment_clinician.length > 40 ? "…" : "")
-                            : <span className="italic text-border">No comment</span>}
+                            ? (
+                              <span className="italic">
+                                &ldquo;{s.comment_clinician.slice(0, 50)}
+                                {s.comment_clinician.length > 50 ? "…" : ""}&rdquo;
+                              </span>
+                            )
+                            : <span className="text-border not-italic">No comment</span>}
                         </td>
                         <td className="px-5 py-3.5 text-right">
                           <button
