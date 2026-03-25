@@ -7,16 +7,16 @@ import { getUser } from "@/app/lib/auth";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const DOMAIN_ROWS: { key: string; label: string }[] = [
-  { key: "ease_average",           label: "Ease of Getting Appointment" },
-  { key: "listening_average",      label: "Listening" },
-  { key: "involving_average",      label: "Involving You in Decisions" },
-  { key: "explaining_average",     label: "Explaining Tests & Treatment" },
-  { key: "empathy_average",        label: "Empathy & Understanding" },
-  { key: "confidence_average",     label: "Confidence in Clinician" },
-  { key: "trust_average",          label: "Trust" },
-  { key: "future_plan_average",     label: "Future Plan" },
-  { key: "escalation_average",     label: "Safety-Netting / Escalation" },
-  { key: "recommendation_average", label: "Likelihood to Recommend" },
+  { key: "ease_average",           label: "How good was the clinician at putting you at ease?" },
+  { key: "listening_average",      label: "How good was the clinician at listening to what you had to say?" },
+  { key: "involving_average",      label: "How good was the clinician at involving you in decisions?" },
+  { key: "explaining_average",     label: "How good was the clinician at explaining your condition?" },
+  { key: "empathy_average",        label: "How good was the clinician at being empathetic?" },
+  { key: "confidence_average",     label: "How much confidence do you have in this clinician's ability?" },
+  { key: "trust_average",          label: "Did you feel the clinician was honest and trustworthy?" },
+  { key: "future_plan_average",    label: "How well did the clinician explain your next steps?" },
+  { key: "escalation_average",     label: "I know what to watch out for and how to seek help." },
+  { key: "recommendation_average", label: "Would you be happy to see this clinician again?" },
 ];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
