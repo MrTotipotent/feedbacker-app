@@ -323,8 +323,33 @@ export default function DashboardPage() {
         ]);
 
         if (revRes.ok) {
-          const data = await revRes.json();
-          setSubmissions(Array.isArray(data) ? data : []);
+          const raw = await revRes.json();
+          const rows: unknown[] = Array.isArray(raw) ? raw : [];
+          // Debug: log first row's keys so we can verify field names from Xano
+          if (rows.length > 0) {
+            console.log("[get_reviews] first row keys:", Object.keys(rows[0] as object));
+            console.log("[get_reviews] first row:", rows[0]);
+          }
+          // Normalise score field names: Xano may return either
+          // "ease" (original column) or "score_ease" (renamed/new column).
+          // We map the un-prefixed variants onto the score_ keys so the UI
+          // always reads score_ease, score_listening, etc.
+          const SCORE_KEYS = [
+            "ease","listening","involving","explaining","empathy",
+            "confidence","trust","futureplan","escalation","recommendation",
+          ] as const;
+          const normalised = rows.map((r) => {
+            const row = { ...(r as Record<string, unknown>) };
+            for (const k of SCORE_KEYS) {
+              const prefixed = `score_${k}` as const;
+              // If the prefixed key is missing or zero, fall back to the un-prefixed key
+              if (!row[prefixed] && row[k] !== undefined) {
+                row[prefixed] = row[k];
+              }
+            }
+            return row as unknown as Submission;
+          });
+          setSubmissions(normalised);
         } else {
           setError(`Failed to load submissions (${revRes.status})`);
         }
