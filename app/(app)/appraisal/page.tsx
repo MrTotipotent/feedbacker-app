@@ -129,7 +129,11 @@ export default function AppraisalPage() {
     dashApi.getAppraisal(clinicianId)
       .then(async (res) => {
         if (!res.ok) throw new Error(`Failed to load (${res.status})`);
-        setRaw(await res.json());
+        const json = await res.json();
+        console.log("[get_appraisal] raw response:", JSON.stringify(json, null, 2));
+        console.log("[get_appraisal] dashboard_data.scores:", json?.dashboard_data?.scores);
+        console.log("[get_appraisal] profile[0]:", json?.profile?.[0]);
+        setRaw(json);
       })
       .catch((e: Error) => setError(e.message))
       .finally(() => {
