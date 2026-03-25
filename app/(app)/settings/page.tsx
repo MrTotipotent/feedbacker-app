@@ -20,6 +20,7 @@ export default function SettingsPage() {
     dashApi.getPractice().then(async (res) => {
       if (!res.ok) return;
       const data = await res.json();
+      console.log("[getPractice] raw response:", JSON.stringify(data, null, 2));
       const url = data?.practice?.google_review_url ?? data?.google_review_url ?? "";
       if (url) setGoogleUrl(url);
       if (data?.practice?.name ?? data?.name) {
@@ -209,6 +210,7 @@ export default function SettingsPage() {
       </div>
 
       {/* ── Account (read-only) ───────────────────────────────────────── */}
+      {console.log("[Account] localUser from getUser():", JSON.stringify(localUser, null, 2)) as unknown as null}
       <div className={card} style={cardShadow}>
         <h2 className="text-base font-semibold text-nhs-blue-dark mb-4">Account</h2>
         <dl className="space-y-3">
