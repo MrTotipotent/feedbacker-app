@@ -131,6 +131,20 @@ export const dashApi = {
 
   getAppraisal: () => apiFetch(`${DASH_API}${DASH_PREFIX}/get_appraisal`),
 
+  getClinicians: () => apiFetch(`${DASH_API}${DASH_PREFIX}/clinicians`),
+
+  addClinician: (data: {
+    name: string;
+    role?: string;
+    redirect_platform?: string;
+    redirect_url?: string;
+    rotation_duration_weeks?: number;
+  }) =>
+    apiFetch(`${DASH_API}${DASH_PREFIX}/add_clinician`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
   updateRedirectUrl: (redirect_url: string, redirect_platform?: string) =>
     apiFetch(`${DASH_API}${DASH_PREFIX}/update_redirect_url`, {
       method: "PATCH",
