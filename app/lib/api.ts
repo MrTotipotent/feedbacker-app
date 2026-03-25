@@ -136,6 +136,13 @@ export const dashApi = {
 
   getClinicians: () => apiFetch(`${DASH_API}${DASH_PREFIX}/clinicians`),
 
+  /** Fire-and-forget after a successful create_submission.
+   *  Recalculates and persists the profile table averages for the
+   *  authenticated clinician / PM.  Requires a valid Bearer token;
+   *  callers should skip this if no token is present. */
+  recalculateProfile: () =>
+    apiFetch(`${DASH_API}/dashboard/recalculate_profile`, { method: "PATCH" }),
+
   addClinician: (data: {
     name: string;
     role?: string;

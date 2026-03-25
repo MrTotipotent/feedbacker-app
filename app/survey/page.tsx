@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { surveyApi } from "@/app/lib/api";
+import { surveyApi, dashApi } from "@/app/lib/api";
+import { getToken } from "@/app/lib/auth";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -163,6 +164,14 @@ function SurveyInner() {
         throw new Error(data?.message ?? `Submission failed (${res.status})`);
       }
       setSubmitted(true);
+
+      // Fire-and-forget profile recalculation — only when a clinician/PM
+      // is logged in (token present). Never blocks the patient flow.
+      if (getToken()) {
+        void dashApi.recalculateProfile().catch((err) =>
+          console.error("[recalculate_profile] failed:", err)
+        );
+      }
     } catch (e: unknown) {
       setSubmitErr(e instanceof Error ? e.message : "Something went wrong. Please try again.");
     } finally {
