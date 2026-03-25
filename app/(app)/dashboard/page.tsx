@@ -397,12 +397,18 @@ export default function DashboardPage() {
 
   // ── Clinician filter / table ────────────────────────────────────────────
 
+  // get_reviews does not return clinician_id — use clinician_name as the
+  // filter key (it IS present in every submission row)
   const clinicianOptions = Array.from(
-    new Map(submissions.map((s) => [s.clinician_id, s.clinician_name ?? s.clinician_id])).entries()
+    new Map(
+      submissions
+        .filter((s) => s.clinician_name)
+        .map((s) => [s.clinician_name!, s.clinician_name!])
+    ).entries()
   );
 
   const filtered = [...submissions]
-    .filter((s) => filterClinician === "all" || s.clinician_id === filterClinician)
+    .filter((s) => filterClinician === "all" || s.clinician_name === filterClinician)
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   // Count shown after filter applied

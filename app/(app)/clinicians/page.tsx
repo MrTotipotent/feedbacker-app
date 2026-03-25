@@ -19,7 +19,8 @@ interface Clinician {
 }
 
 interface Submission {
-  clinician_id: string;
+  // get_reviews does not return clinician_id; match by clinician_name instead
+  clinician_name?: string | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -364,7 +365,7 @@ export default function CliniciansPage() {
         const data = await subRes.json();
         const slist: Submission[] = Array.isArray(data) ? data : [];
         console.log("[getReviews] count:", slist.length);
-        console.log("[getReviews] clinician_ids (first 5):", slist.slice(0, 5).map((s) => s.clinician_id));
+        console.log("[getReviews] clinician_names (first 5):", slist.slice(0, 5).map((s) => s.clinician_name));
         if (slist.length > 0) console.log("[getReviews] first row keys:", Object.keys(slist[0] as object));
         setSubmissions(slist);
       }
@@ -377,9 +378,10 @@ export default function CliniciansPage() {
 
   useEffect(() => { loadData(); }, []);
 
-  // Submission count per clinician
-  function subCount(clinicianId: string): number {
-    return submissions.filter((s) => s.clinician_id === clinicianId).length;
+  // Submission count per clinician — match by name because get_reviews
+  // does not return clinician_id in its response payload
+  function subCount(clinicianName: string): number {
+    return submissions.filter((s) => s.clinician_name === clinicianName).length;
   }
 
   // Expiry warning — any clinician expiring within 4 weeks
@@ -455,7 +457,7 @@ export default function CliniciansPage() {
             <ClinicianCard
               key={c.clinician_id}
               clinician={c}
-              subCount={subCount(c.clinician_id)}
+              subCount={subCount(c.name)}
               onCopied={showToast}
             />
           ))}
