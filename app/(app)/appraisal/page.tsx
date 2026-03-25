@@ -80,6 +80,20 @@ export default function AppraisalPage() {
   const user  = getUser();
   const isPM  = user?.role === "practice_manager";
 
+  // ── Practice name (fetched — getUser() only has practices_id) ──────────
+  const [practiceName, setPracticeName] = useState<string>("—");
+
+  useEffect(() => {
+    dashApi.getPractice()
+      .then(async (res) => {
+        if (!res.ok) return;
+        const data = await res.json();
+        const name = data?.practice?.name ?? data?.name ?? "";
+        if (name) setPracticeName(name);
+      })
+      .catch(() => {});
+  }, []);
+
   // ── Clinician list (PM only) ────────────────────────────────────────────
   const [clinicians,       setClinicians]       = useState<ClinicianOption[]>([]);
   const [selectedId,       setSelectedId]       = useState<string>("");
@@ -299,7 +313,7 @@ export default function AppraisalPage() {
                   </div>
                   <div>
                     <dt className="text-xs text-slate-light font-semibold uppercase tracking-wide">Practice</dt>
-                    <dd className="text-slate font-medium mt-0.5">{user?.practice_name ?? "—"}</dd>
+                    <dd className="text-slate font-medium mt-0.5">{practiceName}</dd>
                   </div>
                   <div>
                     <dt className="text-xs text-slate-light font-semibold uppercase tracking-wide">Report Generated</dt>

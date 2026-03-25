@@ -166,7 +166,20 @@ export default function CqcPage() {
   const [error, setError]             = useState("");
 
   const user = getUser();
-  const practiceName = user?.practice_name ?? "Your Practice";
+
+  // Practice name — getUser() only has practices_id, so fetch the real name
+  const [practiceName, setPracticeName] = useState<string>("Your Practice");
+
+  useEffect(() => {
+    dashApi.getPractice()
+      .then(async (res) => {
+        if (!res.ok) return;
+        const data = await res.json();
+        const name = data?.practice?.name ?? data?.name ?? "";
+        if (name) setPracticeName(name);
+      })
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Date range — default: last 12 months
   const today   = new Date();
