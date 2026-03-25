@@ -129,7 +129,10 @@ export const dashApi = {
     return apiFetch(`${DASH_API}/reports/get_cqc${q ? `?${q}` : ""}`);
   },
 
-  getAppraisal: () => apiFetch(`${DASH_API}${DASH_PREFIX}/get_appraisal`),
+  getAppraisal: (clinicianId?: string) => {
+    const qs = clinicianId ? `?clinician_id=${encodeURIComponent(clinicianId)}` : "";
+    return apiFetch(`${DASH_API}${DASH_PREFIX}/get_appraisal${qs}`);
+  },
 
   getClinicians: () => apiFetch(`${DASH_API}${DASH_PREFIX}/clinicians`),
 
