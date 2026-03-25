@@ -352,13 +352,21 @@ export default function CliniciansPage() {
       ]);
       if (clinRes.ok) {
         const data = await clinRes.json();
-        setClinicians(Array.isArray(data) ? data : []);
+        const clist: Clinician[] = Array.isArray(data) ? data : [];
+        console.log("[getClinicians] count:", clist.length);
+        console.log("[getClinicians] clinician_ids:", clist.map((c) => c.clinician_id));
+        if (clist.length > 0) console.log("[getClinicians] first row:", clist[0]);
+        setClinicians(clist);
       } else {
         setError(`Failed to load clinicians (${clinRes.status})`);
       }
       if (subRes.ok) {
         const data = await subRes.json();
-        setSubmissions(Array.isArray(data) ? data : []);
+        const slist: Submission[] = Array.isArray(data) ? data : [];
+        console.log("[getReviews] count:", slist.length);
+        console.log("[getReviews] clinician_ids (first 5):", slist.slice(0, 5).map((s) => s.clinician_id));
+        if (slist.length > 0) console.log("[getReviews] first row keys:", Object.keys(slist[0] as object));
+        setSubmissions(slist);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
