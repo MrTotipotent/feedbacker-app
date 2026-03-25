@@ -175,7 +175,8 @@ export default function CqcPage() {
       .then(async (res) => {
         if (!res.ok) return;
         const data = await res.json();
-        const name = data?.practice?.name ?? data?.name ?? "";
+        // Response is a flat practice object: { name, practice_name, ... }
+        const name = data?.name ?? data?.practice_name ?? data?.practice?.name ?? "";
         if (name) setPracticeName(name);
       })
       .catch(() => {});
