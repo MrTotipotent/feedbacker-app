@@ -141,7 +141,7 @@ export const dashApi = {
    *  authenticated clinician / PM.  Requires a valid Bearer token;
    *  callers should skip this if no token is present. */
   recalculateProfile: () =>
-    apiFetch(`${DASH_API}/dashboard/update_profile_averages`, { method: "POST" }),
+    apiFetch(`${DASH_API}${DASH_PREFIX}/update_profile_averages`, { method: "POST" }),
 
   addClinician: (data: {
     name: string;
