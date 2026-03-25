@@ -131,7 +131,11 @@ export const dashApi = {
 
   getAppraisal: (clinicianId?: string) => {
     const qs = clinicianId ? `?clinician_id=${encodeURIComponent(clinicianId)}` : "";
-    return apiFetch(`${DASH_API}${DASH_PREFIX}/get_appraisal${qs}`);
+    const url = `${DASH_API}${DASH_PREFIX}/get_appraisal${qs}`;
+    const token = getToken();
+    console.log("[getAppraisal] URL:", url);
+    console.log("[getAppraisal] token present:", !!token, "| first 20 chars:", token?.slice(0, 20));
+    return apiFetch(url);
   },
 
   getClinicians: () => apiFetch(`${DASH_API}${DASH_PREFIX}/clinicians`),

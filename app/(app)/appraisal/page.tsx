@@ -35,13 +35,8 @@ interface Comment {
 }
 
 interface XanoAppraisal {
-  profile?: Array<{
-    total_responses?: number;
-    response_count?: number;
-  }>;
-  dashboard_data?: {
-    scores?: Record<string, number | null>;
-  };
+  scores?: Record<string, number | null>;
+  total_responses?: number | null;
   top_comments?: Comment[];
 }
 
@@ -126,10 +121,14 @@ export default function AppraisalPage() {
   const fetchAppraisal = useCallback((clinicianId?: string) => {
     setScoresLoading(true);
     setError("");
+    console.log("[fetchAppraisal] called with clinicianId:", clinicianId);
     dashApi.getAppraisal(clinicianId)
       .then(async (res) => {
         if (!res.ok) throw new Error(`Failed to load (${res.status})`);
         const json = await res.json();
+        console.log("[fetchAppraisal] raw response:", JSON.stringify(json, null, 2));
+        console.log("[fetchAppraisal] scores:", json?.scores ?? json?.dashboard_data?.scores);
+        console.log("[fetchAppraisal] total_responses:", json?.total_responses ?? json?.dashboard_data?.total_responses);
         setRaw(json);
       })
       .catch((e: Error) => setError(e.message))
@@ -154,9 +153,8 @@ export default function AppraisalPage() {
   }, [isPM, selectedId, fetchAppraisal]);
 
   // ── Derived values ──────────────────────────────────────────────────────
-  const scores       = raw?.dashboard_data?.scores ?? {};
-  const profile0     = raw?.profile?.[0];
-  const totalRaw     = profile0?.total_responses ?? profile0?.response_count;
+  const scores       = raw?.scores ?? {};
+  const totalRaw     = raw?.total_responses;
   const totalLabel   = totalRaw != null ? String(totalRaw) : "—";
   const overallScore = scores["overall_average"];
   const topComments  = raw?.top_comments ?? [];
