@@ -14,7 +14,7 @@ const DOMAIN_ROWS: { key: string; label: string }[] = [
   { key: "empathy_average",        label: "Empathy & Understanding" },
   { key: "confidence_average",     label: "Confidence in Clinician" },
   { key: "trust_average",          label: "Trust" },
-  { key: "futureplan_average",     label: "Future Plan" },
+  { key: "future_plan_average",     label: "Future Plan" },
   { key: "escalation_average",     label: "Safety-Netting / Escalation" },
   { key: "recommendation_average", label: "Likelihood to Recommend" },
 ];
@@ -130,9 +130,6 @@ export default function AppraisalPage() {
       .then(async (res) => {
         if (!res.ok) throw new Error(`Failed to load (${res.status})`);
         const json = await res.json();
-        console.log("[get_appraisal] raw response:", JSON.stringify(json, null, 2));
-        console.log("[get_appraisal] dashboard_data.scores:", json?.dashboard_data?.scores);
-        console.log("[get_appraisal] profile[0]:", json?.profile?.[0]);
         setRaw(json);
       })
       .catch((e: Error) => setError(e.message))
