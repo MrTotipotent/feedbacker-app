@@ -73,10 +73,21 @@ export default function PracticeLandingPage({
     if (!info) return;
     // Only use redirect_url for genuine external URLs; everything else → built-in survey
     const isExternal = info.redirect_url?.trim().startsWith("http");
-    const dest = isExternal
-      ? info.redirect_url!
-      : `/survey?id=${encodeURIComponent(info.clinician_id)}`;
-    window.open(dest, "_blank", "noopener,noreferrer");
+    if (isExternal) {
+      window.open(info.redirect_url!, "_blank", "noopener,noreferrer");
+      return;
+    }
+    // Pass the Step-1 sentiment through to the survey page via URL param so
+    // createSubmission can include it in the payload (tabs are noopener,
+    // so URL is the only reliable cross-tab channel).
+    const sentimentEnc = sentiment.trim()
+      ? `&sentiment=${encodeURIComponent(sentiment.trim())}`
+      : "";
+    window.open(
+      `/survey?id=${encodeURIComponent(info.clinician_id)}${sentimentEnc}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
   }
 
   // ── Loading / error ───────────────────────────────────────────────────────

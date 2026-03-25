@@ -101,6 +101,9 @@ export default function SurveyPage() {
 function SurveyInner() {
   const params      = useSearchParams();
   const clinicianId = params.get("id") ?? "";
+  // Passed from /p/[practice_id] Step 1 via URL param; empty string when
+  // the survey is opened directly (QR code / direct link — no Step 1).
+  const sentimentParam = params.get("sentiment") ?? "";
 
   const [info, setInfo]       = useState<ClinicianInfo | null>(null);
   const [loadErr, setLoadErr] = useState("");
@@ -148,6 +151,7 @@ function SurveyInner() {
     try {
       const payload: Record<string, unknown> = {
         clinician_id:      clinicianId,
+        sentiment:         sentimentParam, // Step-1 text from /p/[practice_id]; "" when opened directly
         ...Object.fromEntries(
           Object.entries(ratings).map(([k, v]) => [`score_${k}`, Number(v)])
         ),
