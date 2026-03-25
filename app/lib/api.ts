@@ -45,6 +45,19 @@ async function apiFetch(
   return res;
 }
 
+// ─── Public fetch (no auth header) ───────────────────────────────────────────
+
+async function surveyFetch(
+  url: string,
+  options: RequestInit = {}
+): Promise<Response> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options.headers as Record<string, string>),
+  };
+  return fetch(url, { ...options, headers });
+}
+
 // ─── Public survey endpoints (no auth) ───────────────────────────────────────
 
 export const surveyApi = {
@@ -73,6 +86,17 @@ export const surveyApi = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
+    }),
+
+  /** Used by /p/[room_id] — room-based QR code landing page */
+  getRoom: (room_id: number) =>
+    surveyFetch(`${SURVEY_API}/get_room?room_id=${room_id}`),
+
+  /** Fire-and-forget event logger for room analytics */
+  logEvent: (event_type: string, room_id: number, clinician_id: string, practice_id: number) =>
+    surveyFetch(`${SURVEY_API}/log_event`, {
+      method: "POST",
+      body: JSON.stringify({ event_type, room_id, clinician_id, practice_id }),
     }),
 };
 
@@ -173,6 +197,26 @@ export const dashApi = {
       method: "PATCH",
       body: JSON.stringify({ practice_id, google_review_url }),
     }),
+
+  // ── Rooms ────────────────────────────────────────────────────────────────
+
+  createRoom: (room_name: string, practice_id: number) =>
+    apiFetch(`${DASH_API}/create_room`, {
+      method: "POST",
+      body: JSON.stringify({ room_name, practice_id }),
+    }),
+
+  getRooms: (practice_id: number) =>
+    apiFetch(`${DASH_API}/get_rooms?practice_id=${practice_id}`),
+
+  updateRoom: (room_id: number, room_name: string, active_clinician_id: string) =>
+    apiFetch(`${DASH_API}/update_room`, {
+      method: "PATCH",
+      body: JSON.stringify({ room_id, room_name, active_clinician_id }),
+    }),
+
+  getEventCounts: (practice_id: number) =>
+    apiFetch(`${DASH_API}/get_event_counts?practice_id=${practice_id}`),
 
   /** PM only — sets which clinician is currently active for the practice QR */
   setActiveClinicianRotation: (

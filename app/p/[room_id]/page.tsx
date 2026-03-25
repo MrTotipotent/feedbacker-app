@@ -5,7 +5,14 @@ import { surveyApi } from "@/app/lib/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface ActiveClinician {
+interface Room {
+  id: number;
+  room_name: string;
+  practice_id: number;
+  active_clinician_id: string;
+}
+
+interface RoomClinician {
   clinician_id: string;
   clinician_name: string;
   practice_name: string;
@@ -18,88 +25,104 @@ type Step = 1 | 2;
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function PracticeLandingPage({
+export default function RoomLandingPage({
   params,
 }: {
-  params: { practice_id: string };
+  params: { room_id: string };
 }) {
-  const { practice_id } = params;
+  const roomIdNum = parseInt(params.room_id, 10);
 
-  const [info, setInfo]       = useState<ActiveClinician | null>(null);
-  const [loadErr, setLoadErr] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [room, setRoom]           = useState<Room | null>(null);
+  const [clinician, setClinician] = useState<RoomClinician | null>(null);
+  const [loadErr, setLoadErr]     = useState("");
+  const [loading, setLoading]     = useState(true);
 
   const [step, setStep]           = useState<Step>(1);
   const [sentiment, setSentiment] = useState("");
 
-  // ── Fetch active clinician ────────────────────────────────────────────────
-  const fetchInfo = useCallback(async () => {
-    if (!practice_id) {
-      setLoadErr("Invalid practice link.");
+  // ── Fetch room + clinician ─────────────────────────────────────────────────
+  const fetchRoom = useCallback(async () => {
+    if (!roomIdNum || isNaN(roomIdNum)) {
+      setLoadErr("Invalid room link.");
       setLoading(false);
       return;
     }
     try {
-      const res  = await surveyApi.getActiveClinician(practice_id);
+      const res  = await surveyApi.getRoom(roomIdNum);
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.message ?? "Practice not found.");
-      if (!data?.clinician_name) throw new Error("No active clinician set for this practice.");
-      setInfo(data);
+      if (!res.ok) throw new Error(data?.message ?? "Room not found.");
+      if (!data?.clinician?.clinician_name) throw new Error("No active clinician set for this room.");
+      setRoom(data.room);
+      setClinician(data.clinician);
+      // Fire-and-forget QR scan event
+      surveyApi.logEvent(
+        "qr_scan",
+        data.room.id,
+        data.clinician.clinician_id,
+        data.room.practice_id
+      ).catch(() => {});
     } catch (e: unknown) {
-      setLoadErr(e instanceof Error ? e.message : "Could not load practice info.");
+      setLoadErr(e instanceof Error ? e.message : "Could not load room info.");
     } finally {
       setLoading(false);
     }
-  }, [practice_id]);
+  }, [roomIdNum]);
 
-  useEffect(() => { fetchInfo(); }, [fetchInfo]);
+  useEffect(() => { fetchRoom(); }, [fetchRoom]);
 
-  // ── Continue from Step 1 → Step 2 ────────────────────────────────────────
+  // ── Continue from Step 1 → Step 2 ─────────────────────────────────────────
   function handleContinue() {
-    // Fire-and-forget save the sentiment comment
-    if (info?.clinician_id && sentiment.trim()) {
-      surveyApi.createQuickFeedback(info.clinician_id, sentiment.trim()).catch(() => {});
+    if (clinician?.clinician_id && sentiment.trim()) {
+      surveyApi.createQuickFeedback(clinician.clinician_id, sentiment.trim()).catch(() => {});
     }
     setStep(2);
   }
 
-  // ── Button destinations ───────────────────────────────────────────────────
+  // ── Button destinations ────────────────────────────────────────────────────
   function handleGoogle() {
-    if (!info?.google_review_url) return;
-    window.open(info.google_review_url, "_blank", "noopener,noreferrer");
+    if (!clinician?.google_review_url || !room) return;
+    surveyApi.logEvent(
+      "google_review_click",
+      room.id,
+      clinician.clinician_id,
+      room.practice_id
+    ).catch(() => {});
+    window.open(clinician.google_review_url, "_blank", "noopener,noreferrer");
   }
 
   function handleFeedbackForm() {
-    if (!info) return;
-    // Only use redirect_url for genuine external URLs; everything else → built-in survey
-    const isExternal = info.redirect_url?.trim().startsWith("http");
+    if (!clinician || !room) return;
+    surveyApi.logEvent(
+      "feedback_click",
+      room.id,
+      clinician.clinician_id,
+      room.practice_id
+    ).catch(() => {});
+    const isExternal = clinician.redirect_url?.trim().startsWith("http");
     if (isExternal) {
-      window.open(info.redirect_url!, "_blank", "noopener,noreferrer");
+      window.open(clinician.redirect_url!, "_blank", "noopener,noreferrer");
       return;
     }
-    // Pass the Step-1 sentiment through to the survey page via URL param so
-    // createSubmission can include it in the payload (tabs are noopener,
-    // so URL is the only reliable cross-tab channel).
     const sentimentEnc = sentiment.trim()
       ? `&sentiment=${encodeURIComponent(sentiment.trim())}`
       : "";
     window.open(
-      `/survey?id=${encodeURIComponent(info.clinician_id)}${sentimentEnc}`,
+      `/survey?id=${encodeURIComponent(clinician.clinician_id)}${sentimentEnc}`,
       "_blank",
       "noopener,noreferrer"
     );
   }
 
-  // ── Loading / error ───────────────────────────────────────────────────────
+  // ── Loading / error ────────────────────────────────────────────────────────
   if (loading) return <FullPageSpinner />;
 
-  if (loadErr || !info) {
+  if (loadErr || !clinician) {
     return (
       <PageShell>
         <div className="bg-white rounded-2xl shadow-card p-8 text-center space-y-3">
           <div className="text-3xl">⚠️</div>
           <p className="text-sm font-semibold text-slate">
-            {loadErr || "Practice not found."}
+            {loadErr || "Room not found."}
           </p>
           <p className="text-xs text-slate-light">
             Please check the QR code or link you used.
@@ -109,8 +132,8 @@ export default function PracticeLandingPage({
     );
   }
 
-  const hasGoogle   = !!info.google_review_url?.trim();
-  const hasFeedback = !!info.redirect_url?.trim() || !!info.clinician_id;
+  const hasGoogle   = !!clinician.google_review_url?.trim();
+  const hasFeedback = !!clinician.redirect_url?.trim() || !!clinician.clinician_id;
 
   // ── Step 1 — Sentiment ────────────────────────────────────────────────────
   if (step === 1) {
@@ -120,15 +143,13 @@ export default function PracticeLandingPage({
           key="step1"
           className="animate-in fade-in slide-in-from-bottom-4 duration-300 space-y-6"
         >
-          {/* Heading */}
           <div className="text-center space-y-2 pt-2">
             <h1 className="text-xl font-bold text-nhs-blue-dark leading-snug">
               How would you describe your experience with{" "}
-              <span className="text-nhs-blue">{info.clinician_name}</span> today?
+              <span className="text-nhs-blue">{clinician.clinician_name}</span> today?
             </h1>
           </div>
 
-          {/* Input card */}
           <div className="bg-white rounded-2xl shadow-card p-6 space-y-4">
             <textarea
               value={sentiment}
@@ -164,21 +185,18 @@ export default function PracticeLandingPage({
         key="step2"
         className="animate-in fade-in slide-in-from-bottom-4 duration-300 space-y-6"
       >
-        {/* Heading */}
         <div className="text-center space-y-1 pt-2">
           <p className="text-xs font-semibold uppercase tracking-widest text-slate-light">
             Thank you! 🎉
           </p>
           <h1 className="text-xl font-bold text-nhs-blue-dark leading-snug">
             Let others know,{" "}
-            <span className="text-nhs-blue">{info.clinician_name}</span>&apos;s
+            <span className="text-nhs-blue">{clinician.clinician_name}</span>&apos;s
             patients are talking!
           </h1>
         </div>
 
-        {/* Buttons card */}
         <div className="bg-white rounded-2xl shadow-card p-6 space-y-4">
-          {/* Button 1 — Google review */}
           {hasGoogle ? (
             <button
               type="button"
@@ -188,7 +206,7 @@ export default function PracticeLandingPage({
               <span className="text-2xl leading-none">⭐</span>
               <span className="text-sm leading-snug">
                 Let others know! Leave{" "}
-                <span className="font-bold">{info.clinician_name}</span> a public
+                <span className="font-bold">{clinician.clinician_name}</span> a public
                 Google review
               </span>
             </button>
@@ -198,7 +216,6 @@ export default function PracticeLandingPage({
             </p>
           )}
 
-          {/* Divider */}
           {hasGoogle && hasFeedback && (
             <div className="flex items-center gap-3">
               <div className="flex-1 border-t border-border" />
@@ -207,7 +224,6 @@ export default function PracticeLandingPage({
             </div>
           )}
 
-          {/* Button 2 — Feedback form */}
           {hasFeedback && (
             <button
               type="button"
@@ -217,7 +233,7 @@ export default function PracticeLandingPage({
               <span className="text-2xl leading-none">📋</span>
               <span className="text-sm leading-snug">
                 Complete a feedback form for{" "}
-                <span className="font-bold">{info.clinician_name}</span> — needed
+                <span className="font-bold">{clinician.clinician_name}</span> — needed
                 for their professional development
               </span>
             </button>

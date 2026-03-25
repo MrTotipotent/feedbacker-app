@@ -28,7 +28,14 @@ interface Submission {
 interface Practice {
   name?: string;
   practice_name?: string;
+  practice_id?: number;
   active_clinician_id?: string;
+}
+
+interface EventCounts {
+  qr_scans?: number | null;
+  google_clicks?: number | null;
+  feedback_clicks?: number | null;
 }
 
 // ─── Dimension config ─────────────────────────────────────────────────────────
@@ -299,13 +306,14 @@ function DetailPanel({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const [submissions, setSubmissions] = useState<Submission[]>([]);
-  const [practice, setPractice]       = useState<Practice | null>(null);
-  const [loading, setLoading]         = useState(true);
-  const [error, setError]             = useState("");
+  const [submissions,  setSubmissions]  = useState<Submission[]>([]);
+  const [practice,     setPractice]     = useState<Practice | null>(null);
+  const [eventCounts,  setEventCounts]  = useState<EventCounts | null>(null);
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState("");
   const [filterClinician, setFilterClinician] = useState("all");
-  const [selected, setSelected]       = useState<Submission | null>(null);
-  const [cqcTarget, setCqcTarget]     = useState<number>(4.0);
+  const [selected,     setSelected]     = useState<Submission | null>(null);
+  const [cqcTarget,    setCqcTarget]    = useState<number>(4.0);
 
   useEffect(() => {
     // Load CQC target from localStorage (set in Settings)
@@ -321,6 +329,17 @@ export default function DashboardPage() {
           dashApi.getReviews(),
           dashApi.getPractice(),
         ]);
+
+        // Fetch event counts after we have the practice_id
+        if (pracRes.ok) {
+          const pracData = await pracRes.clone().json().catch(() => null);
+          const pid = pracData?.practice_id ?? pracData?.id;
+          if (pid) {
+            dashApi.getEventCounts(pid).then(async (evRes) => {
+              if (evRes.ok) setEventCounts(await evRes.json());
+            }).catch(() => {});
+          }
+        }
 
         if (revRes.ok) {
           const raw = await revRes.json();
@@ -508,7 +527,37 @@ export default function DashboardPage() {
           />
         </div>
 
-        {/* ── 3. Performance overview ────────────────────────────────────── */}
+        {/* ── 3. Activity (Room event counts) ───────────────────────────── */}
+        <section>
+          <div className="mb-4">
+            <h2 className="text-lg font-bold text-nhs-blue-dark">Activity</h2>
+            <p className="text-sm text-slate-light mt-0.5">
+              Room QR code engagement across all rooms
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <KpiCard
+              label="QR Scans"
+              value={eventCounts ? (eventCounts.qr_scans ?? 0) : "—"}
+              sub="total room QR scans"
+              accent="#005EB8"
+            />
+            <KpiCard
+              label="Google Review Clicks"
+              value={eventCounts ? (eventCounts.google_clicks ?? 0) : "—"}
+              sub="patients tapped Google review"
+              accent="#009639"
+            />
+            <KpiCard
+              label="Feedback Form Clicks"
+              value={eventCounts ? (eventCounts.feedback_clicks ?? 0) : "—"}
+              sub="patients tapped feedback form"
+              accent="#00A9CE"
+            />
+          </div>
+        </section>
+
+        {/* ── 4. Performance overview ────────────────────────────────────── */}
         <section>
           <div className="mb-4">
             <h2 className="text-lg font-bold text-nhs-blue-dark">
@@ -540,7 +589,7 @@ export default function DashboardPage() {
           )}
         </section>
 
-        {/* ── 4. Individual submissions ──────────────────────────────────── */}
+        {/* ── 5. Individual submissions ──────────────────────────────────── */}
         <section>
           <div className="mb-4 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
             <div>
