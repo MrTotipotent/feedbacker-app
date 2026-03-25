@@ -155,7 +155,7 @@ function SurveyInner() {
         ...Object.fromEntries(
           Object.entries(ratings).map(([k, v]) => [`score_${k}`, Number(v)])
         ),
-        clinician_comment: clinicianComment.trim() || null,
+        comment_clinician: clinicianComment.trim() || null,
       };
       const res = await surveyApi.createSubmission(payload);
       if (!res.ok) {

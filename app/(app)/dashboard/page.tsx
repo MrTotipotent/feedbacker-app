@@ -10,7 +10,8 @@ interface Submission {
   clinician_id: string;
   clinician_name?: string;
   created_at: string;
-  comment_clinician?: string;
+  sentiment?: string | null;
+  comment_clinician?: string | null;
   redirect_platform?: string | null;
   score_ease: number;
   score_listening: number;
@@ -229,44 +230,66 @@ function DetailPanel({
           </button>
         </div>
 
-        <div className="px-6 py-5 flex-1">
-          <p className="text-xs font-bold text-slate-light uppercase tracking-wider mb-4">
-            Scores
-          </p>
-          <div className="grid grid-cols-2 gap-3 mb-6">
-            {DIMENSIONS.map(({ key, label }) => {
-              const val = sub[key] ?? 0;
-              const color =
-                val >= 4.5 ? "#009639"
-                : val >= 3.5 ? "#005EB8"
-                : val >= 2.5 ? "#E65C00"
-                : "#DA291C";
-              return (
-                <div key={key} className="bg-off-white rounded-lg p-3 border border-border">
-                  <p className="text-[10px] font-semibold text-slate-light uppercase tracking-wider mb-1">
-                    {label}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <span className="font-serif text-xl" style={{ color }}>{val}</span>
-                    <StarBar score={val} />
-                  </div>
-                </div>
-              );
-            })}
+        <div className="px-6 py-5 flex-1 space-y-6">
+
+          {/* Sentiment (Step-1 text from /p/[practice_id]) */}
+          <div>
+            <p className="text-xs font-bold text-slate-light uppercase tracking-wider mb-2">
+              Patient Sentiment
+            </p>
+            {sub.sentiment ? (
+              <div className="bg-nhs-blue/5 border border-nhs-blue/20 rounded-lg p-4 text-sm text-slate leading-relaxed italic">
+                &ldquo;{sub.sentiment}&rdquo;
+              </div>
+            ) : (
+              <p className="text-sm text-slate-light italic">No sentiment recorded.</p>
+            )}
           </div>
 
-          {sub.comment_clinician ? (
-            <div>
-              <p className="text-xs font-bold text-slate-light uppercase tracking-wider mb-2">
-                Patient Comment
-              </p>
+          {/* 10 dimension scores */}
+          <div>
+            <p className="text-xs font-bold text-slate-light uppercase tracking-wider mb-3">
+              Scores
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              {DIMENSIONS.map(({ key, label }) => {
+                const val = sub[key] ?? 0;
+                const color =
+                  val >= 4.5 ? "#009639"
+                  : val >= 3.5 ? "#005EB8"
+                  : val >= 2.5 ? "#E65C00"
+                  : "#DA291C";
+                return (
+                  <div key={key} className="bg-off-white rounded-lg p-3 border border-border">
+                    <p className="text-[10px] font-semibold text-slate-light uppercase tracking-wider mb-1">
+                      {label}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <span className="font-serif text-xl" style={{ color }}>
+                        {val > 0 ? val : "—"}
+                      </span>
+                      {val > 0 && <StarBar score={val} />}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Private clinician comment */}
+          <div>
+            <p className="text-xs font-bold text-slate-light uppercase tracking-wider mb-2">
+              Private Comment to Clinician
+            </p>
+            {sub.comment_clinician ? (
               <div className="bg-off-white rounded-lg p-4 border border-border text-sm text-slate leading-relaxed italic">
                 &ldquo;{sub.comment_clinician}&rdquo;
               </div>
-            </div>
-          ) : (
-            <p className="text-sm text-slate-light italic">No comment left.</p>
-          )}
+            ) : (
+              <p className="text-sm text-slate-light italic">No comment left.</p>
+            )}
+          </div>
+
         </div>
       </div>
     </>
@@ -569,14 +592,14 @@ export default function DashboardPage() {
                           <StarBar score={s.score_recommendation ?? 0} />
                         </td>
                         <td className="px-5 py-3.5 text-slate-light max-w-xs">
-                          {s.comment_clinician
+                          {s.sentiment
                             ? (
                               <span className="italic">
-                                &ldquo;{s.comment_clinician.slice(0, 50)}
-                                {s.comment_clinician.length > 50 ? "…" : ""}&rdquo;
+                                &ldquo;{s.sentiment.slice(0, 50)}
+                                {s.sentiment.length > 50 ? "…" : ""}&rdquo;
                               </span>
                             )
-                            : <span className="text-border not-italic">No comment</span>}
+                            : <span className="text-border not-italic">—</span>}
                         </td>
                         <td className="px-5 py-3.5 text-right">
                           <button
