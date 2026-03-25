@@ -15,20 +15,17 @@ export default function SettingsPage() {
   const [practiceMsg, setPracticeMsg]   = useState("");
   const [practiceErr, setPracticeErr]   = useState("");
 
-  // Load google_review_url from practice record on mount
+  // Load practice details from API on mount
   useEffect(() => {
     dashApi.getPractice().then(async (res) => {
       if (!res.ok) return;
       const data = await res.json();
-      console.log("[getPractice] raw response:", JSON.stringify(data, null, 2));
       const url = data?.practice?.google_review_url ?? data?.google_review_url ?? "";
       if (url) setGoogleUrl(url);
-      if (data?.practice?.name ?? data?.name) {
-        setPracticeName(data?.practice?.name ?? data?.name ?? practiceName);
-      }
-      if (data?.practice?.ods_code ?? data?.ods_code) {
-        setOdsCode(data?.practice?.ods_code ?? data?.ods_code ?? odsCode);
-      }
+      const name = data?.practice_name ?? data?.practice?.name ?? data?.name ?? "";
+      if (name) setPracticeName(name);
+      const ods = data?.practice?.ods_code ?? data?.ods_code ?? "";
+      if (ods) setOdsCode(ods);
     }).catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -210,7 +207,6 @@ export default function SettingsPage() {
       </div>
 
       {/* ── Account (read-only) ───────────────────────────────────────── */}
-      {console.log("[Account] localUser from getUser():", JSON.stringify(localUser, null, 2)) as unknown as null}
       <div className={card} style={cardShadow}>
         <h2 className="text-base font-semibold text-nhs-blue-dark mb-4">Account</h2>
         <dl className="space-y-3">
@@ -218,7 +214,7 @@ export default function SettingsPage() {
             { label: "Name",     value: localUser?.name },
             { label: "Email",    value: localUser?.email },
             { label: "Role",     value: localUser?.role?.replace(/_/g, " ") },
-            { label: "Practice", value: localUser?.practice_name },
+            { label: "Practice", value: practiceName || undefined },
           ].map(({ label, value }) => (
             <div key={label} className="flex items-start gap-4">
               <dt className="text-xs font-bold text-slate-light uppercase tracking-wider w-24 flex-shrink-0 pt-0.5">
