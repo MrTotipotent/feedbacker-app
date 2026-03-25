@@ -168,9 +168,19 @@ function SurveyInner() {
       // Fire-and-forget profile recalculation — only when a clinician/PM
       // is logged in (token present). Never blocks the patient flow.
       if (getToken()) {
-        void dashApi.recalculateProfile().catch((err) =>
-          console.error("[recalculate_profile] failed:", err)
-        );
+        console.log("[recalculate_profile] attempting — token present, firing POST");
+        void (async () => {
+          try {
+            const r = await dashApi.recalculateProfile();
+            const body = await r.json().catch(() => "(non-JSON body)");
+            console.log("[recalculate_profile] response status:", r.status, r.ok ? "OK" : "FAIL");
+            console.log("[recalculate_profile] response body:", body);
+          } catch (err) {
+            console.error("[recalculate_profile] fetch error:", err);
+          }
+        })();
+      } else {
+        console.log("[recalculate_profile] skipped — no auth token in localStorage");
       }
     } catch (e: unknown) {
       setSubmitErr(e instanceof Error ? e.message : "Something went wrong. Please try again.");
