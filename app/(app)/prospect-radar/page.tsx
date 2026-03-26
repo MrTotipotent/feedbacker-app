@@ -366,20 +366,25 @@ export default function ProspectRadar() {
     do {
       if (abortRef.current) throw new Error("Aborted");
 
-      const res = await fetch(`/api/cqc-proxy?page=${pg}&perPage=1000`);
-      if (!res.ok) throw new Error(`CQC API error ${res.status}`);
+      // perPage capped at 500 — the proxy enforces the same ceiling
+      const res = await fetch(`/api/cqc-proxy?page=${pg}&perPage=500`);
 
       const data = await res.json() as {
         locations?:      CQCLocation[];
         totalLocations?: number;
         total?:          number;
         totalPages?:     number;
+        error?:          string;
       };
+
+      if (!res.ok) {
+        throw new Error(data.error ?? `CQC API error ${res.status}`);
+      }
 
       if (data.locations?.length) all.push(...data.locations);
 
       const total = data.totalLocations ?? data.total ?? 0;
-      totalPages  = data.totalPages ?? (total > 0 ? Math.ceil(total / 1000) : 1);
+      totalPages  = data.totalPages ?? (total > 0 ? Math.ceil(total / 500) : 1);
       // CQC fetch drives 0-40% of overall progress bar
       setProgress(Math.round((pg / totalPages) * 40));
       pg++;
