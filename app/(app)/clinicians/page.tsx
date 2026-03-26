@@ -596,11 +596,15 @@ function RoomRow({
         <select value={activeClinId} onChange={(e) => handleClinicianChange(e.target.value)}
           className={`${inputCls} flex-1 min-w-0`}>
           <option value="">— Select clinician —</option>
-          {clinicians.map((c) => (
-            <option key={c.clinician_id} value={c.clinician_id}>
-              {c.name}{c.role ? ` — ${c.role}` : ""}
-            </option>
-          ))}
+          {clinicians.map((c, i) => {
+            // Fallback to Xano row id or name if clinician_id is null/empty
+            const optVal = c.clinician_id || String((c as Record<string, unknown>).id ?? "") || c.name;
+            return (
+              <option key={optVal || i} value={optVal}>
+                {c.name}{c.role ? ` — ${c.role}` : ""}
+              </option>
+            );
+          })}
         </select>
 
         <div className="flex items-center gap-1.5 relative">
@@ -1022,8 +1026,9 @@ export default function CliniciansPage() {
           onClose={() => setShowModal(false)}
           onSuccess={() => {
             setShowModal(false);
-            showToast("Clinician added!");
+            showToast("Clinician added successfully");
             loadClinicians();
+            loadRooms();
           }}
         />
       )}
