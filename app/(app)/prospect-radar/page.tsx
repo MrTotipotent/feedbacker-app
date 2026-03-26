@@ -81,7 +81,6 @@ const LS_CQC_DATA    = "pr_cqc_data";
 const LS_CQC_TS      = "pr_cqc_ts";
 const LS_GPPS_DATA   = "pr_gpps_data";
 const LS_GPPS_TS     = "pr_gpps_ts";
-const LS_GPPS_P25    = "pr_gpps_p25";
 const LS_PROSPECTS   = "pr_prospects";
 const LS_PROSPECTS_TS = "pr_prospects_ts";
 const LS_TOTAL       = "pr_total_scanned";
@@ -96,10 +95,19 @@ const CQC_SCRAPE_LIMIT  = 500; // max practices to scrape per refresh session
 const CQC_SCRAPE_DELAY  = 1000; // ms between scrape batches (be respectful)
 const LS_CQC_RATING_PFX = "pr_cqcr_"; // localStorage key prefix for scraped ratings
 
-// Default GPPS URL — update annually when NHS England publishes new data.
-// Find the practice-level CSV at https://www.gp-patient.co.uk/performance
+// Default GPPS URL — practice-level weighted CSV for 2025.
+// Find the download link at https://www.gp-patient.co.uk/performance
 const GPPS_DEFAULT_URL =
-  "https://www.gp-patient.co.uk/performance-data/GPPS_2024_Practice_Results.csv";
+  "https://www.gp-patient.co.uk/Downloads/2025/GPPS_2025_practice_level_weighted_data.csv";
+
+// Fallback URLs tried in order if the primary 404s.
+const GPPS_FALLBACK_URLS = [
+  "https://www.gp-patient.co.uk/downloads/2025/GPPS_2025_National_data_weighted_CSV.csv",
+  "https://www.gp-patient.co.uk/Downloads/2023/GPPS_2023_practice_data_weighted_CSV.csv",
+];
+
+// Hard threshold for GPPS bottom quartile flag (practices below 65% = +1 heat point).
+const GPPS_FLAG_THRESHOLD = 65;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -193,14 +201,25 @@ function detectCodeCol(headers: string[]): string | null {
 /** Find the "overall experience % positive" column in a parsed GPPS CSV */
 function detectOverallCol(headers: string[]): string | null {
   const exact = [
+    // 2025 variants
     "q68_pct_positive", "q68_positive_pct", "q68pctpositive",
+    "q68_weighted_positive_pct", "q68_percent_positive", "q68_pct_pos",
+    // older / national variants
     "overall_experience_pct_positive", "overall_pct_positive",
     "q_68_pct_positive", "q68positive", "q68_good_very_good",
+    "pct_positive_q68", "percent_positive_q68",
   ];
   for (const c of exact) if (headers.includes(c)) return c;
   return (
-    headers.find((h) => h.includes("q68") && (h.includes("pct") || h.includes("pos") || h.includes("perc"))) ?? null
+    headers.find((h) => h.includes("q68") && (h.includes("pct") || h.includes("pos") || h.includes("perc") || h.includes("weight"))) ?? null
   );
+}
+
+/** Find the practice postcode column in a parsed GPPS CSV (used for matching when ODS unavailable) */
+function detectPostcodeCol(headers: string[]): string | null {
+  const exact = ["practice_postcode", "postcode", "post_code", "prac_postcode", "pcpostcode"];
+  for (const c of exact) if (headers.includes(c)) return c;
+  return headers.find((h) => h.includes("postcode") || (h.includes("post") && h.includes("code"))) ?? null;
 }
 
 // ─── Pitch email builder ──────────────────────────────────────────────────────
@@ -336,16 +355,12 @@ export default function ProspectRadar() {
     setGoogleKey(localStorage.getItem(LS_GKEY)     ?? "");
     setGppsUrl(  localStorage.getItem(LS_GPPS_URL) ?? GPPS_DEFAULT_URL);
 
-    const cached = localStorage.getItem(LS_PROSPECTS);
-    const ts     = localStorage.getItem(LS_PROSPECTS_TS);
-    const total  = localStorage.getItem(LS_TOTAL);
-    if (cached && ts) {
-      try {
-        setProspects(JSON.parse(cached) as Prospect[]);
-        setLastRefreshed(new Date(Number(ts)).toLocaleString("en-GB"));
-        setTotalScanned(Number(total ?? "0"));
-      } catch { /* ignore corrupt cache */ }
-    }
+    // Prospects are not cached (too large for localStorage).
+    // Restore last-refreshed timestamp and total count for display only.
+    const ts    = localStorage.getItem(LS_PROSPECTS_TS);
+    const total = localStorage.getItem(LS_TOTAL);
+    if (ts) setLastRefreshed(new Date(Number(ts)).toLocaleString("en-GB"));
+    if (total) setTotalScanned(Number(total));
   }, []);
 
   function saveSettings() {
@@ -417,7 +432,12 @@ export default function ProspectRadar() {
   }
 
   // ── GPPS data fetch + parse ────────────────────────────────────────────────
-  /** Returns a map of ODS code → overall experience % positive, and sets the 25th-percentile threshold */
+  /**
+   * Returns a map of NORMALISED POSTCODE → overall experience % positive.
+   * Falls back to ODS code key as well (both are stored).
+   * Tries primary URL then GPPS_FALLBACK_URLS on 404.
+   * Failure is always non-fatal — returns empty map.
+   */
   async function fetchGPPS(force: boolean): Promise<Map<string, number>> {
     setLoadPhase("Fetching GP Patient Survey data…");
     setProgress(42);
@@ -434,44 +454,68 @@ export default function ProspectRadar() {
       }
     }
 
-    const url = localStorage.getItem(LS_GPPS_URL) ?? gppsUrl;
-    if (!url) return map;
+    const primaryUrl = localStorage.getItem(LS_GPPS_URL) ?? gppsUrl;
+    if (!primaryUrl) return map;
+
+    const urlsToTry = [primaryUrl, ...GPPS_FALLBACK_URLS.filter((u) => u !== primaryUrl)];
 
     try {
-      const res = await fetch(`/api/gpps-proxy?url=${encodeURIComponent(url)}`);
-      if (!res.ok) throw new Error(`GPPS HTTP ${res.status}`);
+      let text: string | null = null;
 
-      const text = await res.text();
-      const rows = parseCSVRows(text);
-      if (!rows.length) throw new Error("GPPS CSV appears empty");
+      for (const url of urlsToTry) {
+        try {
+          const res = await fetch(`/api/gpps-proxy?url=${encodeURIComponent(url)}`);
+          if (res.ok) {
+            text = await res.text();
+            if (text.trim().length > 0) break; // success
+            text = null;
+          }
+          // 404 / non-ok → try next
+        } catch {
+          // network error → try next
+        }
+      }
 
-      const headers  = Object.keys(rows[0]);
-      const codeCol  = detectCodeCol(headers);
-      const scoreCol = detectOverallCol(headers);
-
-      if (!codeCol || !scoreCol) {
-        console.warn("[ProspectRadar] GPPS column detection failed. Headers:", headers.slice(0, 15));
+      if (!text) {
+        console.warn("[ProspectRadar] GPPS: all URLs failed or returned empty");
         return map;
       }
 
-      const scores: number[] = [];
-      for (const row of rows) {
-        const code = (row[codeCol] ?? "").trim().toUpperCase();
-        const val  = parseFloat((row[scoreCol] ?? "").replace("%", ""));
-        if (code && !isNaN(val)) { map.set(code, val); scores.push(val); }
+      const rows = parseCSVRows(text);
+      if (!rows.length) {
+        console.warn("[ProspectRadar] GPPS CSV appears empty");
+        return map;
       }
 
-      // 25th-percentile threshold for "bottom quartile" flag
-      if (scores.length) {
-        scores.sort((a, b) => a - b);
-        const p25 = scores[Math.floor(scores.length * 0.25)];
-        localStorage.setItem(LS_GPPS_P25, p25.toString());
+      const headers     = Object.keys(rows[0]);
+      const codeCol     = detectCodeCol(headers);
+      const scoreCol    = detectOverallCol(headers);
+      const postcodeCol = detectPostcodeCol(headers);
+
+      if (!scoreCol) {
+        console.warn("[ProspectRadar] GPPS: could not detect score column. Headers:", headers.slice(0, 20));
+        return map;
+      }
+
+      for (const row of rows) {
+        const val = parseFloat((row[scoreCol] ?? "").replace(/%/g, "").trim());
+        if (isNaN(val)) continue;
+
+        // Key by postcode (primary matching key since ODS not in CQC directory)
+        if (postcodeCol) {
+          const pc = (row[postcodeCol] ?? "").replace(/\s+/g, "").toUpperCase();
+          if (pc) map.set(pc, val);
+        }
+        // Also key by ODS code as fallback
+        if (codeCol) {
+          const code = (row[codeCol] ?? "").trim().toUpperCase();
+          if (code) map.set(code, val);
+        }
       }
 
       localStorage.setItem(LS_GPPS_DATA, JSON.stringify(Array.from(map.entries())));
       localStorage.setItem(LS_GPPS_TS,   Date.now().toString());
     } catch (err) {
-      // GPPS failure is non-fatal — continue without it
       console.warn("[ProspectRadar] GPPS fetch failed:", err);
     }
 
@@ -529,13 +573,14 @@ export default function ProspectRadar() {
   }
 
   // ── Build a Prospect from a CQC directory entry ──────────────────────────
-  // CQC flag is always false — the directory CSV has no domain ratings.
-  // GPPS matching requires ODS codes; the directory CSV doesn't include them,
-  // so gppsScore will be null for all practices loaded this way.
-  function buildProspect(loc: CQCLocation, gppsMap: Map<string, number>, gppsP25: number): Prospect {
-    const odsCode   = (loc.odsCode ?? "").trim().toUpperCase();
-    const gppsScore = gppsMap.has(odsCode) ? (gppsMap.get(odsCode) ?? null) : null;
-    const gppsFlag  = gppsScore !== null && gppsP25 > 0 && gppsScore < gppsP25;
+  // GPPS is matched by normalised postcode (ODS codes aren't in the CQC directory CSV).
+  // gppsFlag triggers at < GPPS_FLAG_THRESHOLD (65%) — defined as bottom quartile.
+  function buildProspect(loc: CQCLocation, gppsMap: Map<string, number>): Prospect {
+    // Try postcode match first, then ODS code as fallback
+    const normPostcode = (loc.postalCode ?? "").replace(/\s+/g, "").toUpperCase();
+    const odsCode      = (loc.odsCode ?? "").trim().toUpperCase();
+    const gppsScore    = gppsMap.get(normPostcode) ?? (odsCode ? gppsMap.get(odsCode) ?? null : null);
+    const gppsFlag     = gppsScore !== null && gppsScore < GPPS_FLAG_THRESHOLD;
 
     const address = [
       loc.postalAddressLine1,
@@ -594,12 +639,11 @@ export default function ProspectRadar() {
 
       // 2 ── GPPS (40–50%)
       const gppsMap = await fetchGPPS(force);
-      const gppsP25 = parseFloat(localStorage.getItem(LS_GPPS_P25) ?? "0");
       setProgress(52);
 
       // 3 ── Build initial prospects (50–55%)
       setLoadPhase("Building prospect list…");
-      const list: Prospect[] = cqcAll.map((loc) => buildProspect(loc, gppsMap, gppsP25));
+      const list: Prospect[] = cqcAll.map((loc) => buildProspect(loc, gppsMap));
       list.sort((a, b) => b.heatScore - a.heatScore);
       setProspects([...list]);
       setProgress(55);
@@ -681,9 +725,10 @@ export default function ProspectRadar() {
       const final = [...list].sort((a, b) => b.heatScore - a.heatScore);
       setProspects(final);
       const now = Date.now();
-      localStorage.setItem(LS_PROSPECTS,    JSON.stringify(final));
-      localStorage.setItem(LS_PROSPECTS_TS, now.toString());
-      localStorage.setItem(LS_TOTAL,        cqcAll.length.toString());
+      // Prospects array is too large for localStorage (~8k entries) — skip caching it.
+      // CQC location data (pr_cqc_data) and per-practice rating caches persist instead.
+      try { localStorage.setItem(LS_PROSPECTS_TS, now.toString()); } catch { /* quota */ }
+      try { localStorage.setItem(LS_TOTAL,        cqcAll.length.toString()); } catch { /* quota */ }
       setLastRefreshed(new Date(now).toLocaleString("en-GB"));
       setProgress(100);
     } catch (err) {
@@ -1006,21 +1051,28 @@ export default function ProspectRadar() {
                         )}
                       </td>
 
-                      {/* GPPS overall experience */}
+                      {/* GPPS overall experience — red <65%, amber 65–74%, green ≥75% */}
                       <td className={tdCls}>
-                        {p.gppsScore !== null ? (
-                          <div>
-                            <span className={`text-sm font-bold ${p.gppsFlag ? "text-amber-700" : "text-slate"}`}>
-                              {p.gppsScore.toFixed(0)}%
-                            </span>
-                            {p.gppsFlag && (
-                              <span className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                                style={{ background: "#FEF3C7", color: "#92400E" }}>
-                                Bottom 25%
+                        {p.gppsScore !== null ? (() => {
+                          const s = p.gppsScore;
+                          const isRed   = s < 65;
+                          const isAmber = s >= 65 && s < 75;
+                          const textCls = isRed ? "text-red-600" : isAmber ? "text-amber-700" : "text-green-700";
+                          const dot     = isRed ? "🔴" : isAmber ? "🟠" : "🟢";
+                          return (
+                            <div>
+                              <span className={`text-sm font-bold ${textCls}`}>
+                                {dot} {s.toFixed(0)}%
                               </span>
-                            )}
-                          </div>
-                        ) : (
+                              {isRed && (
+                                <span className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                                  style={{ background: "#FEE2E2", color: "#B91C1C" }}>
+                                  Bottom quartile
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })() : (
                           <span className="text-xs text-slate-light">—</span>
                         )}
                       </td>
