@@ -14,6 +14,7 @@ interface ClinicianRow {
   redirect_platform?: string | null;
   redirect_url?: string | null;
   total_submissions?: number | null;
+  rotation_start_date?: string | null;
   rotation_end_date?: string | null;
   // allow any extra fields from get_clinician_dashboard
   [key: string]: unknown;
@@ -64,6 +65,11 @@ function truncate(s: string | null | undefined, n: number): string {
 function fmtDate(d: string | null | undefined): string {
   if (!d) return "";
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function isDatePast(d: string | null | undefined): boolean {
+  if (!d) return false;
+  return new Date(d) < new Date();
 }
 
 // ─── Event count helpers ───────────────────────────────────────────────────────
@@ -808,8 +814,8 @@ export default function CliniciansPage() {
     <div className="p-6 lg:p-8 max-w-full">
 
       {/* Header */}
-      <div className="flex items-start justify-between gap-4 mb-4">
-        <div>
+      <div className="flex flex-col items-center gap-3 mb-4">
+        <div className="text-center">
           <h1 className="text-2xl font-bold text-nhs-blue-dark">Clinician Profiles</h1>
           <p className="text-sm text-slate-light mt-0.5">Manage your practice clinicians and their feedback setup</p>
         </div>
@@ -856,7 +862,7 @@ export default function CliniciansPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[1100px]">
+            <table className="w-full text-sm min-w-[1250px]">
               <thead>
                 <tr className="border-b border-border bg-off-white">
                   <th className={thSm}>Clinician</th>
@@ -864,6 +870,7 @@ export default function CliniciansPage() {
                   <th className={thSm}>Platform</th>
                   <th className={thSm}>Feedback URL</th>
                   <th className={thSm}>Submissions</th>
+                  <th className={thSm}>Rotation Start</th>
                   <th className={thSm}>Rotation End</th>
                   <th className={thSm}>Room</th>
                   <th className={thSm}>QR Scans</th>
@@ -937,10 +944,26 @@ export default function CliniciansPage() {
                         </span>
                       </td>
 
-                      {/* Rotation End */}
+                      {/* Rotation Start — read-only */}
+                      {/* TODO: add a PATCH /update_clinician_rotation endpoint to Xano to enable inline editing */}
+                      <td className={td}>
+                        {c.rotation_start_date
+                          ? <span className="text-xs text-slate">{fmtDate(c.rotation_start_date)}</span>
+                          : <span className="text-xs text-slate-light">—</span>}
+                      </td>
+
+                      {/* Rotation End — read-only; red + Ended badge if past */}
+                      {/* TODO: enable inline editing once PATCH /update_clinician_rotation exists in Xano */}
                       <td className={td}>
                         {c.rotation_end_date
-                          ? <span className="text-xs text-slate">{fmtDate(c.rotation_end_date)}</span>
+                          ? isDatePast(c.rotation_end_date)
+                            ? (
+                              <span className="flex flex-col gap-0.5">
+                                <span className="text-xs font-semibold text-red-600">{fmtDate(c.rotation_end_date)}</span>
+                                <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 w-fit">Ended</span>
+                              </span>
+                            )
+                            : <span className="text-xs text-slate">{fmtDate(c.rotation_end_date)}</span>
                           : <span className="text-xs text-slate-light italic">Ongoing</span>}
                       </td>
 
