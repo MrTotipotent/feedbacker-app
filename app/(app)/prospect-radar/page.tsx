@@ -375,6 +375,7 @@ export default function ProspectRadar() {
         total?:          number;
         totalPages?:     number;
         error?:          string;
+        _dataSource?:    string; // "csv:URL" when the API fallback was used
       };
 
       if (!res.ok) {
