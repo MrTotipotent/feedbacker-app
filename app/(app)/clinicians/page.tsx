@@ -392,7 +392,9 @@ function AddClinicianModal({ onClose, onSuccess }: { onClose: () => void; onSucc
         email: email.trim(),
         role,
         redirect_platform: platform,
-        redirect_url: platform === "feedbacker" ? undefined : url.trim() || undefined,
+        redirect_url: platform === "feedbacker"
+          ? "https://feedbacker-app-m3re.vercel.app/survey"
+          : url.trim(),
         rotation_start_date: startDate || undefined,
         rotation_end_date: endDate || undefined,
       });
