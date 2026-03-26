@@ -188,6 +188,16 @@ export const dashApi = {
       body: JSON.stringify(data),
     }),
 
+  updateClinicianDates: (
+    clinician_id: string,
+    rotation_start_date: string | null,
+    rotation_end_date: string | null
+  ) =>
+    apiFetch(`${DASH_API}${DASH_PREFIX}/update_clinician_dates`, {
+      method: "PATCH",
+      body: JSON.stringify({ clinician_id, rotation_start_date, rotation_end_date }),
+    }),
+
   updateRedirectUrl: (redirect_url: string, redirect_platform?: string, clinician_id?: string) =>
     apiFetch(`${DASH_API}${DASH_PREFIX}/update_redirect_url`, {
       method: "PATCH",

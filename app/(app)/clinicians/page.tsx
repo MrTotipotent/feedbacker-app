@@ -72,6 +72,12 @@ function isDatePast(d: string | null | undefined): boolean {
   return new Date(d) < new Date();
 }
 
+/** Converts any ISO/timestamp string to YYYY-MM-DD for <input type="date"> */
+function toDateInput(d: string | null | undefined): string {
+  if (!d) return "";
+  return d.slice(0, 10);
+}
+
 // ─── Event count helpers ───────────────────────────────────────────────────────
 
 function countEvents(
@@ -343,6 +349,126 @@ function InlineUrlEdit({
           {saving ? "…" : "Save"}
         </button>
         <button onClick={() => setOpen(false)}
+          className="text-[11px] px-2.5 py-1 rounded border border-border text-slate hover:bg-off-white">
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Inline Date Edit ─────────────────────────────────────────────────────────
+
+/**
+ * Pencil-icon inline editor for a single rotation date (start or end).
+ * Calls PATCH /update_clinician_dates with both dates on every save —
+ * otherDate is sent unchanged alongside the edited value.
+ */
+function InlineDateEdit({
+  date,
+  otherDate,
+  isEnd,
+  clinicianId,
+  onSaved,
+}: {
+  date: string | null | undefined;
+  otherDate: string | null | undefined;
+  isEnd: boolean;
+  clinicianId: string;
+  onSaved: () => void;
+}) {
+  const [open,      setOpen]      = useState(false);
+  const [val,       setVal]       = useState(toDateInput(date));
+  const [saving,    setSaving]    = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
+
+  function handleOpen() {
+    setVal(toDateInput(date));
+    setOpen(true);
+  }
+
+  function handleCancel() {
+    setVal(toDateInput(date));
+    setOpen(false);
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const startDate = isEnd ? toDateInput(otherDate) || null : val || null;
+      const endDate   = isEnd ? val || null               : toDateInput(otherDate) || null;
+      const res = await dashApi.updateClinicianDates(clinicianId, startDate, endDate);
+      if (!res.ok) throw new Error();
+      setOpen(false);
+      setJustSaved(true);
+      setTimeout(() => { setJustSaved(false); onSaved(); }, 1200);
+    } catch {
+      // keep open so user can retry
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const pencilIcon = (
+    <button
+      onClick={handleOpen}
+      className="text-slate-light hover:text-nhs-blue transition-colors flex-shrink-0"
+      title={`Edit rotation ${isEnd ? "end" : "start"} date`}
+    >
+      <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3">
+        <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61zm1.414 1.06a.25.25 0 0 0-.354 0L10.811 3.75l1.439 1.44 1.263-1.263a.25.25 0 0 0 0-.354l-1.086-1.086zM11.189 6.25 9.75 4.81l-6.286 6.287a.25.25 0 0 0-.064.108l-.558 1.953 1.953-.558a.251.251 0 0 0 .108-.064z"/>
+      </svg>
+    </button>
+  );
+
+  if (justSaved) {
+    return (
+      <span className="flex items-center gap-1 text-[11px] font-semibold text-nhs-green whitespace-nowrap">
+        <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 flex-shrink-0">
+          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+        </svg>
+        Saved
+      </span>
+    );
+  }
+
+  if (!open) {
+    return (
+      <span className="flex items-center gap-1.5">
+        {isEnd && date && isDatePast(date) ? (
+          <span className="flex flex-col gap-0.5">
+            <span className="text-xs font-semibold text-red-600">{fmtDate(date)}</span>
+            <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 w-fit">Ended</span>
+          </span>
+        ) : isEnd && !date ? (
+          <span className="text-xs text-slate-light italic">Ongoing</span>
+        ) : !date ? (
+          <span className="text-xs text-slate-light">—</span>
+        ) : (
+          <span className="text-xs text-slate">{fmtDate(date)}</span>
+        )}
+        {pencilIcon}
+      </span>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5 min-w-[150px]">
+      <input
+        type="date"
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        className="text-xs rounded border border-border bg-off-white px-2 py-1 focus:outline-none focus:ring-1 focus:ring-nhs-blue"
+      />
+      {isEnd && (
+        <p className="text-[10px] text-slate-light">Leave blank to set as Ongoing</p>
+      )}
+      <div className="flex gap-1.5">
+        <button onClick={handleSave} disabled={saving}
+          className="text-[11px] px-2.5 py-1 rounded bg-nhs-blue text-white font-semibold hover:bg-nhs-blue-dark disabled:opacity-50">
+          {saving ? "…" : "Save"}
+        </button>
+        <button onClick={handleCancel}
           className="text-[11px] px-2.5 py-1 rounded border border-border text-slate hover:bg-off-white">
           Cancel
         </button>
@@ -944,27 +1070,26 @@ export default function CliniciansPage() {
                         </span>
                       </td>
 
-                      {/* Rotation Start — read-only */}
-                      {/* TODO: add a PATCH /update_clinician_rotation endpoint to Xano to enable inline editing */}
+                      {/* Rotation Start — inline editable */}
                       <td className={td}>
-                        {c.rotation_start_date
-                          ? <span className="text-xs text-slate">{fmtDate(c.rotation_start_date)}</span>
-                          : <span className="text-xs text-slate-light">—</span>}
+                        <InlineDateEdit
+                          date={c.rotation_start_date}
+                          otherDate={c.rotation_end_date}
+                          isEnd={false}
+                          clinicianId={c.clinician_id}
+                          onSaved={loadClinicians}
+                        />
                       </td>
 
-                      {/* Rotation End — read-only; red + Ended badge if past */}
-                      {/* TODO: enable inline editing once PATCH /update_clinician_rotation exists in Xano */}
+                      {/* Rotation End — inline editable; red + Ended badge if past */}
                       <td className={td}>
-                        {c.rotation_end_date
-                          ? isDatePast(c.rotation_end_date)
-                            ? (
-                              <span className="flex flex-col gap-0.5">
-                                <span className="text-xs font-semibold text-red-600">{fmtDate(c.rotation_end_date)}</span>
-                                <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 w-fit">Ended</span>
-                              </span>
-                            )
-                            : <span className="text-xs text-slate">{fmtDate(c.rotation_end_date)}</span>
-                          : <span className="text-xs text-slate-light italic">Ongoing</span>}
+                        <InlineDateEdit
+                          date={c.rotation_end_date}
+                          otherDate={c.rotation_start_date}
+                          isEnd={true}
+                          clinicianId={c.clinician_id}
+                          onSaved={loadClinicians}
+                        />
                       </td>
 
                       {/* Room */}
