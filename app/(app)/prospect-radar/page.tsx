@@ -68,7 +68,7 @@ interface Prospect {
   heatScore:            0 | 1 | 2 | 3;
 }
 
-type SortField  = "heat" | "google" | "inspection" | "gpps";
+type SortField  = "heat" | "google" | "gpps";
 type HeatFilter = "all"  | "hot"    | "warm"       | "lukewarm";
 
 // ─── localStorage keys ────────────────────────────────────────────────────────
@@ -347,53 +347,64 @@ export default function ProspectRadar() {
     setShowSettings(false);
   }
 
-  // ── CQC data fetch (paginated) ────────────────────────────────────────────
-  async function fetchAllCQC(force: boolean): Promise<CQCLocation[]> {
-    setLoadPhase("Fetching CQC GP locations…");
+  // ── GP directory fetch (local CQC directory CSV) ─────────────────────────
+  // Uses the static /public/data/cqc-directory.csv file, filters for Doctors/GPs.
+  // Replaces the old live CQC API fetch which was blocked by the CQC WAF (403).
+  async function fetchGPDirectory(force: boolean): Promise<CQCLocation[]> {
+    setLoadPhase("Loading GP practice directory…");
+    setProgress(5);
 
     if (!force) {
       const cached = localStorage.getItem(LS_CQC_DATA);
       const ts     = localStorage.getItem(LS_CQC_TS);
       if (cached && ts && Date.now() - Number(ts) < CACHE_TTL) {
+        setProgress(40);
         return JSON.parse(cached) as CQCLocation[];
       }
     }
 
-    const all: CQCLocation[] = [];
-    let pg = 1;
-    let totalPages = 1;
+    const res = await fetch("/data/cqc-directory.csv");
+    if (!res.ok) throw new Error(`Failed to load CQC directory: HTTP ${res.status}`);
 
-    do {
-      if (abortRef.current) throw new Error("Aborted");
+    setProgress(20);
+    const text = await res.text();
+    const lines = text.split(/\r?\n/);
 
-      // perPage capped at 500 — the proxy enforces the same ceiling
-      const res = await fetch(`/api/cqc-proxy?page=${pg}&perPage=500`);
+    // Skip 4 metadata rows — header is the first line starting with "Name"
+    let headerIdx = -1;
+    for (let i = 0; i < Math.min(lines.length, 10); i++) {
+      if (lines[i].startsWith("Name,")) { headerIdx = i; break; }
+    }
+    if (headerIdx === -1) throw new Error("CQC directory CSV header not found");
 
-      const data = await res.json() as {
-        locations?:      CQCLocation[];
-        totalLocations?: number;
-        total?:          number;
-        totalPages?:     number;
-        error?:          string;
-        _dataSource?:    string; // "csv:URL" when the API fallback was used
-      };
+    const rows = parseCSVRows(lines.slice(headerIdx).join("\n"));
+    setProgress(30);
 
-      if (!res.ok) {
-        throw new Error(data.error ?? `CQC API error ${res.status}`);
-      }
+    const locations: CQCLocation[] = rows
+      .filter((r) => (r.service_types ?? "").includes("Doctors/GPs"))
+      .map((r) => {
+        const addr  = r.address ?? "";
+        const parts = addr.split(",").map((s) => s.trim()).filter(Boolean);
+        return {
+          locationId:             (r.cqc_location_id_for_office_use_only ?? "").trim() || `dir-${r.name}-${r.postcode}`,
+          locationName:           (r.name ?? "").trim(),
+          postalCode:             (r.postcode ?? "").trim() || null,
+          region:                 (r.region ?? "").trim() || null,
+          localAuthority:         (r.local_authority ?? "").trim() || null,
+          website:                (r.services_website_if_available ?? "").trim() || null,
+          phonenumber:            (r.phone_number ?? "").trim() || null,
+          postalAddressLine1:     parts[0] ?? null,
+          postalAddressTownCity:  parts[parts.length - 1] ?? null,
+          postalAddressCounty:    null,
+          odsCode:                null,
+          currentRatings:         null,
+        };
+      });
 
-      if (data.locations?.length) all.push(...data.locations);
-
-      const total = data.totalLocations ?? data.total ?? 0;
-      totalPages  = data.totalPages ?? (total > 0 ? Math.ceil(total / 500) : 1);
-      // CQC fetch drives 0-40% of overall progress bar
-      setProgress(Math.round((pg / totalPages) * 40));
-      pg++;
-    } while (pg <= totalPages);
-
-    localStorage.setItem(LS_CQC_DATA, JSON.stringify(all));
+    localStorage.setItem(LS_CQC_DATA, JSON.stringify(locations));
     localStorage.setItem(LS_CQC_TS,   Date.now().toString());
-    return all;
+    setProgress(40);
+    return locations;
   }
 
   // ── GPPS data fetch + parse ────────────────────────────────────────────────
@@ -480,22 +491,18 @@ export default function ProspectRadar() {
     }
   }
 
-  // ── Build a Prospect from a CQC location ─────────────────────────────────
+  // ── Build a Prospect from a CQC directory entry ──────────────────────────
+  // CQC flag is always false — the directory CSV has no domain ratings.
+  // GPPS matching requires ODS codes; the directory CSV doesn't include them,
+  // so gppsScore will be null for all practices loaded this way.
   function buildProspect(loc: CQCLocation, gppsMap: Map<string, number>, gppsP25: number): Prospect {
-    const ratings           = loc.currentRatings;
-    const cqcOverall        = getOverallRating(ratings);
-    const cqcResponsive     = getResponsiveRating(ratings);
-    const lastInspectionDate = getReportDate(ratings);
-    const cqcFlag           = cqcResponsive === "Requires Improvement" || cqcResponsive === "Inadequate";
-
-    const odsCode  = (loc.odsCode ?? "").trim().toUpperCase();
+    const odsCode   = (loc.odsCode ?? "").trim().toUpperCase();
     const gppsScore = gppsMap.has(odsCode) ? (gppsMap.get(odsCode) ?? null) : null;
     const gppsFlag  = gppsScore !== null && gppsP25 > 0 && gppsScore < gppsP25;
 
     const address = [
       loc.postalAddressLine1,
       loc.postalAddressTownCity,
-      loc.postalAddressCounty,
     ].filter(Boolean).join(", ");
 
     return {
@@ -507,16 +514,16 @@ export default function ProspectRadar() {
       website:              loc.website     ?? "",
       region:               loc.region      ?? "",
       odsCode,
-      cqcOverallRating:     cqcOverall,
-      cqcResponsiveRating:  cqcResponsive,
-      lastInspectionDate,
-      cqcFlag,
+      cqcOverallRating:     "N/A",
+      cqcResponsiveRating:  "N/A",
+      lastInspectionDate:   null,
+      cqcFlag:              false,
       gppsScore,
       gppsFlag,
       googleRating:         null,
       googleCount:          0,
       googleFlag:           false,
-      heatScore:            computeHeat(cqcFlag, gppsFlag, false),
+      heatScore:            computeHeat(false, gppsFlag, false),
     };
   }
 
@@ -529,8 +536,8 @@ export default function ProspectRadar() {
     setProgress(0);
 
     try {
-      // 1 ── CQC (0–40%)
-      const cqcAll = await fetchAllCQC(force);
+      // 1 ── GP directory CSV (0–40%)
+      const cqcAll = await fetchGPDirectory(force);
       setTotalScanned(cqcAll.length);
 
       // 2 ── GPPS (40–50%)
@@ -547,7 +554,8 @@ export default function ProspectRadar() {
 
       // 4 ── Google ratings for flagged practices (60–100%)
       const key = localStorage.getItem(LS_GKEY) ?? "";
-      const toGoogle = list.filter((p) => p.cqcFlag).slice(0, GOOGLE_LIMIT);
+      // Without CQC ratings we have no pre-filter — take the first GOOGLE_LIMIT practices
+      const toGoogle = list.slice(0, GOOGLE_LIMIT);
 
       if (key && toGoogle.length > 0) {
         const cqcById = new Map(cqcAll.map((l) => [l.locationId, l]));
@@ -637,12 +645,6 @@ export default function ProspectRadar() {
           diff = (a.googleRating ?? 99) - (b.googleRating ?? 99); break;
         case "gpps":
           diff = (a.gppsScore ?? 100) - (b.gppsScore ?? 100); break;
-        case "inspection": {
-          const dA = a.lastInspectionDate ? new Date(a.lastInspectionDate).getTime() : 0;
-          const dB = b.lastInspectionDate ? new Date(b.lastInspectionDate).getTime() : 0;
-          diff = dA - dB;
-          break;
-        }
       }
       return sortDir === "desc" ? -diff : diff;
     });
@@ -813,7 +815,7 @@ export default function ProspectRadar() {
           <div className="text-5xl mb-4">🎯</div>
           <h2 className="text-lg font-bold text-nhs-blue-dark mb-2">No data yet</h2>
           <p className="text-sm text-slate-light mb-2 max-w-md mx-auto">
-            Click <strong>Refresh Data</strong> to scan all ~6,500 GP practices across England via the CQC API,
+            Click <strong>Load Prospect Data</strong> to load ~9,000 GP practices from the local CQC directory,
             overlay GP Patient Survey scores, and identify your hottest sales targets.
           </p>
           <p className="text-xs text-slate-light mb-6">
@@ -831,18 +833,11 @@ export default function ProspectRadar() {
         <div className="bg-white rounded-[10px] border border-border overflow-hidden mb-6"
           style={{ boxShadow: "0 2px 12px rgba(0,94,184,0.08)" }}>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[1100px]">
+            <table className="w-full text-sm min-w-[800px]">
               <thead>
                 <tr className="border-b border-border bg-off-white">
                   <th className={thCls}>Practice</th>
                   <th className={thCls}>Address</th>
-                  <th className={thCls}>CQC Ratings</th>
-                  <th className={thCls}>
-                    <button onClick={() => toggleSort("inspection")}
-                      className="flex items-center gap-1 hover:text-nhs-blue transition-colors">
-                      Last Inspection <SortArrow field="inspection" current={sortField} dir={sortDir} />
-                    </button>
-                  </th>
                   <th className={thCls}>
                     <button onClick={() => toggleSort("gpps")}
                       className="flex items-center gap-1 hover:text-nhs-blue transition-colors">
@@ -866,7 +861,6 @@ export default function ProspectRadar() {
               </thead>
               <tbody className="divide-y divide-border">
                 {paginated.map((p) => {
-                  const overdue = (ageInYears(p.lastInspectionDate) ?? 0) > 3;
                   const rowBg =
                     p.heatScore === 3 ? "rgba(254,226,226,0.35)"
                     : p.heatScore === 2 ? "rgba(254,243,199,0.35)"
@@ -895,33 +889,6 @@ export default function ProspectRadar() {
                         <p className="text-xs text-slate leading-snug">{p.address || "—"}</p>
                         <p className="font-mono text-[11px] text-slate-light mt-0.5">{p.postcode}</p>
                         <p className="text-[11px] text-slate-light">{p.region}</p>
-                      </td>
-
-                      {/* CQC ratings */}
-                      <td className={tdCls} style={{ minWidth: 180 }}>
-                        <div className="flex flex-col gap-1">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[10px] text-slate-light">Overall:</span>
-                            <RatingBadge rating={p.cqcOverallRating} />
-                          </div>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[10px] text-slate-light">Responsive:</span>
-                            <RatingBadge rating={p.cqcResponsiveRating} />
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Last inspection date */}
-                      <td className={tdCls}>
-                        <span className={`text-xs font-medium ${overdue ? "text-red-600" : "text-slate"}`}>
-                          {formatDate(p.lastInspectionDate)}
-                        </span>
-                        {overdue && p.lastInspectionDate && (
-                          <span className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                            style={{ background: "#FEE2E2", color: "#B91C1C" }}>
-                            Overdue
-                          </span>
-                        )}
                       </td>
 
                       {/* GPPS overall experience */}
