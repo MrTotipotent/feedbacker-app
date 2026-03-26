@@ -8,6 +8,7 @@ import { getUser } from "@/app/lib/auth";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface ClinicianRow {
+  id?: number;          // Xano integer primary key — used for DELETE
   clinician_id: string;
   name: string;
   role?: string | null;
@@ -812,7 +813,7 @@ export default function CliniciansPage() {
   const [copiedId,      setCopiedId]      = useState("");
   const [toggle,        setToggle]        = useState<TimeToggle>("month");
   const [addingRoom,    setAddingRoom]    = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ recordId: number; clinicianId: string; name: string } | null>(null);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -824,17 +825,18 @@ export default function CliniciansPage() {
     setTimeout(() => setCopiedId(""), 2000);
   }
 
-  async function handleDeleteClinician(id: string) {
+  async function handleDeleteClinician(recordId: number, clinicianId: string) {
     setConfirmDelete(null);
     try {
-      const res = await dashApi.deleteClinician(id);
+      // Xano DELETE /delete_clinician — payload is the integer primary key { id }
+      const res = await dashApi.deleteClinician(recordId);
       if (!res.ok) {
         const err = await res.json().catch(() => ({})) as { message?: string };
         showToast(`Delete failed: ${err?.message ?? res.status}`);
         return;
       }
       // Remove the row instantly — no full page reload needed
-      setClinicians((prev) => prev.filter((c) => c.clinician_id !== id));
+      setClinicians((prev) => prev.filter((c) => c.clinician_id !== clinicianId));
       showToast("Clinician removed");
     } catch {
       showToast("Delete failed — please try again");
@@ -1167,7 +1169,7 @@ export default function CliniciansPage() {
                           {/* Delete clinician */}
                           <button
                             title={`Remove ${c.name}`}
-                            onClick={() => setConfirmDelete({ id: c.clinician_id, name: c.name })}
+                            onClick={() => setConfirmDelete({ recordId: c.id ?? 0, clinicianId: c.clinician_id, name: c.name })}
                             className="p-1.5 rounded-lg border border-border text-red-400 hover:border-red-400 hover:bg-red-50 transition-colors"
                           >
                             <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
@@ -1291,7 +1293,7 @@ export default function CliniciansPage() {
                 Cancel
               </button>
               <button
-                onClick={() => handleDeleteClinician(confirmDelete.id)}
+                onClick={() => handleDeleteClinician(confirmDelete.recordId, confirmDelete.clinicianId)}
                 className="text-sm font-semibold px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors"
               >
                 Remove

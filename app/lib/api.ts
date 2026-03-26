@@ -238,11 +238,12 @@ export const dashApi = {
     return apiFetch(`${DASH_API}/get_event_counts?${p}`);
   },
 
-  /** Permanently removes a clinician record from Xano */
-  deleteClinician: (clinician_id: string) =>
+  /** Permanently removes a clinician record from Xano.
+   *  Expects the Xano integer primary key (id field), not clinician_id string. */
+  deleteClinician: (id: number) =>
     apiFetch(`${DASH_API}${DASH_PREFIX}/delete_clinician`, {
       method: "DELETE",
-      body: JSON.stringify({ clinician_id }),
+      body: JSON.stringify({ id }),
     }),
 
   /** PM only — sets which clinician is currently active for the practice QR */
