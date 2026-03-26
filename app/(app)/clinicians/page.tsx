@@ -384,6 +384,22 @@ function AddClinicianModal({ onClose, onSuccess }: { onClose: () => void; onSucc
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    // Frontend validation — catch missing params before hitting Xano
+    if (!name.trim())       { setErr("Full name is required.");                          return; }
+    if (!email.trim())      { setErr("Email is required.");                              return; }
+    if (!startDate)         { setErr("Rotation start date is required.");                return; }
+    if (platform !== "feedbacker" && !url.trim()) {
+      setErr("A feedback URL is required for non-Feedbacker platforms.");                return;
+    }
+
+    const rotation_duration_weeks = endDate && startDate
+      ? Math.round(
+          (new Date(endDate).getTime() - new Date(startDate).getTime()) /
+          (1000 * 60 * 60 * 24 * 7)
+        )
+      : 0;
+
     setSaving(true);
     setErr("");
     try {
@@ -395,8 +411,9 @@ function AddClinicianModal({ onClose, onSuccess }: { onClose: () => void; onSucc
         redirect_url: platform === "feedbacker"
           ? "https://feedbacker-app-m3re.vercel.app/survey"
           : url.trim(),
-        rotation_start_date: startDate || undefined,
+        rotation_start_date: startDate,
         rotation_end_date: endDate || undefined,
+        rotation_duration_weeks,
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
