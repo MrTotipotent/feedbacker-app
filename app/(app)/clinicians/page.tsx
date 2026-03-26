@@ -392,7 +392,7 @@ function AddClinicianModal({ onClose, onSuccess }: { onClose: () => void; onSucc
         email: email.trim(),
         role,
         redirect_platform: platform,
-        redirect_url: platform === "feedbacker" ? "" : url.trim(),
+        redirect_url: platform === "feedbacker" ? undefined : url.trim() || undefined,
         rotation_start_date: startDate || undefined,
         rotation_end_date: endDate || undefined,
       });
