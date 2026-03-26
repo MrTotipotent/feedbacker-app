@@ -829,9 +829,12 @@ export default function CliniciansPage() {
       // Load from both endpoints and merge — getClinicianDashboard may
       // exclude newly added clinicians that don't yet have auth records.
       // getClinicians returns all clinician rows regardless of auth status.
-      const [dashRes, listRes] = await Promise.all([
+      // getReviews provides live per-clinician submission counts (the
+      // total_submissions field on getClinicianDashboard is stale/0).
+      const [dashRes, listRes, reviewsRes] = await Promise.all([
         dashApi.getClinicianDashboard(),
         dashApi.getClinicians(),
+        dashApi.getReviews(),
       ]);
 
       const dashData: ClinicianRow[] = dashRes.ok
@@ -842,11 +845,22 @@ export default function CliniciansPage() {
         ? (await listRes.json().then((d: unknown) => Array.isArray(d) ? d : []) as ClinicianRow[])
         : [];
 
-      // Merge: keep dashboard rows (they have submission counts), then
-      // append any entries from /clinicians that are missing from dashboard.
+      // Build a live name→count map from reviews (get_reviews has clinician_name, not clinician_id)
+      const reviewCounts: Record<string, number> = {};
+      if (reviewsRes.ok) {
+        const reviews = await reviewsRes.json().then((d: unknown) => Array.isArray(d) ? d : []) as Array<{ clinician_name?: string }>;
+        for (const r of reviews) {
+          if (r.clinician_name) reviewCounts[r.clinician_name] = (reviewCounts[r.clinician_name] ?? 0) + 1;
+        }
+      }
+
+      // Merge: keep dashboard rows, append any from /clinicians missing from dashboard.
       const dashIds = new Set(dashData.map((c) => c.clinician_id).filter(Boolean));
       const extras = listData.filter((c) => !c.clinician_id || !dashIds.has(c.clinician_id));
-      const merged = [...dashData, ...extras];
+      const merged = [...dashData, ...extras].map((c) => ({
+        ...c,
+        total_submissions: reviewCounts[c.name] ?? 0,
+      }));
 
       if (merged.length > 0) {
         setClinicians(merged);
