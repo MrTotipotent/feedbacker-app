@@ -14,8 +14,8 @@ interface ClinicianRow {
   redirect_platform?: string | null;
   redirect_url?: string | null;
   total_submissions?: number | null;
-  rotation_start_date?: string | null;
-  rotation_end_date?: string | null;
+  rotation_start_date?: string | number | null;
+  rotation_end_date?: string | number | null;
   // allow any extra fields from get_clinician_dashboard
   [key: string]: unknown;
 }
@@ -62,19 +62,20 @@ function truncate(s: string | null | undefined, n: number): string {
   return s.length > n ? s.slice(0, n) + "…" : s;
 }
 
-function fmtDate(d: string | null | undefined): string {
+function fmtDate(d: string | number | null | undefined): string {
   if (!d) return "";
   return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-function isDatePast(d: string | null | undefined): boolean {
+function isDatePast(d: string | number | null | undefined): boolean {
   if (!d) return false;
   return new Date(d) < new Date();
 }
 
-/** Converts any ISO/timestamp string to YYYY-MM-DD for <input type="date"> */
-function toDateInput(d: string | null | undefined): string {
+/** Converts any ISO/timestamp string or Unix-ms number to YYYY-MM-DD for <input type="date"> */
+function toDateInput(d: string | number | null | undefined): string {
   if (!d) return "";
+  if (typeof d === "number") return new Date(d).toISOString().slice(0, 10);
   return d.slice(0, 10);
 }
 
@@ -371,8 +372,8 @@ function InlineDateEdit({
   clinicianId,
   onSaved,
 }: {
-  date: string | null | undefined;
-  otherDate: string | null | undefined;
+  date: string | number | null | undefined;
+  otherDate: string | number | null | undefined;
   isEnd: boolean;
   clinicianId: string;
   onSaved: () => void;
