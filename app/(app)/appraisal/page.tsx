@@ -198,6 +198,10 @@ export default function AppraisalPage() {
             <p className="text-sm text-slate-light mt-0.5">
               GMC revalidation-ready patient feedback summary
             </p>
+            {/* Data scope disclaimer */}
+            <p className="text-xs text-slate-light mt-2">
+              Data shown is only available for clinicians who used the Feedbacker native feedback form.
+            </p>
           </div>
           <button
             onClick={() => window.print()}

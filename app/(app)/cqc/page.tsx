@@ -500,6 +500,11 @@ export default function CqcPage() {
           </div>
         </div>
 
+        {/* Data scope disclaimer */}
+        <p className="text-xs text-slate-light text-center -mt-2">
+          Data shown is only available for clinicians who used the Feedbacker native feedback form.
+        </p>
+
         {/* ── Domain score cards ────────────────────────────────────────── */}
         <section>
           <div className="mb-4">

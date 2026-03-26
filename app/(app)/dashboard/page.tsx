@@ -563,16 +563,16 @@ export default function DashboardPage() {
               delta={activityToggle === "month" ? eventDelta("qr_scans") : undefined}
             />
             <KpiCard
-              label="Google Review Clicks"
+              label="Google Reviews"
               value={activeEvents ? (activeEvents.google_clicks ?? 0) : "—"}
               sub={activityToggle === "month" ? "this month" : "patients tapped Google review"}
               accent="#009639"
               delta={activityToggle === "month" ? eventDelta("google_clicks") : undefined}
             />
             <KpiCard
-              label="Feedback Form Clicks"
+              label="Feedbacks Completed"
               value={activeEvents ? (activeEvents.feedback_clicks ?? 0) : "—"}
-              sub={activityToggle === "month" ? "this month" : "patients tapped feedback form"}
+              sub={activityToggle === "month" ? "this month" : "patients completed feedback form"}
               accent="#00A9CE"
               delta={activityToggle === "month" ? eventDelta("feedback_clicks") : undefined}
             />
@@ -740,12 +740,16 @@ export default function DashboardPage() {
                             : <span className="text-border not-italic">—</span>}
                         </td>
                         <td className="px-5 py-3.5 text-right">
-                          <button
-                            onClick={() => setSelected(s)}
-                            className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-nhs-blue text-nhs-blue hover:bg-nhs-blue hover:text-white transition-colors"
-                          >
-                            View
-                          </button>
+                          {/* Only show View when the patient used the native Feedbacker form;
+                              if they were redirected to Google Reviews there is no form response to display */}
+                          {(!s.redirect_platform || s.redirect_platform === "Feedbacker") && (
+                            <button
+                              onClick={() => setSelected(s)}
+                              className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-nhs-blue text-nhs-blue hover:bg-nhs-blue hover:text-white transition-colors"
+                            >
+                              View
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}

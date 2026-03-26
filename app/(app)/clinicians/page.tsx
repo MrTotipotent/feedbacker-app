@@ -861,6 +861,9 @@ export default function CliniciansPage() {
         total_submissions: reviewCounts[c.name] ?? 0,
       }));
 
+      // Sort alphabetically by name on load so the table is predictable
+      merged.sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
+
       if (merged.length > 0) {
         setClinicians(merged);
       } else if (!dashRes.ok) {
