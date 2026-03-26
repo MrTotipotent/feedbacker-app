@@ -14,6 +14,7 @@ interface ClinicianRow {
   redirect_platform?: string | null;
   redirect_url?: string | null;
   total_submissions?: number | null;
+  rotation_end_date?: string | null;
   // allow any extra fields from get_clinician_dashboard
   [key: string]: unknown;
 }
@@ -58,6 +59,11 @@ function isThisMonth(dateStr: string): boolean {
 function truncate(s: string | null | undefined, n: number): string {
   if (!s) return "";
   return s.length > n ? s.slice(0, n) + "…" : s;
+}
+
+function fmtDate(d: string | null | undefined): string {
+  if (!d) return "";
+  return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 // ─── Event count helpers ───────────────────────────────────────────────────────
@@ -551,6 +557,7 @@ function RoomRow({
 
   async function handleSave() {
     setSaving(true);
+    console.log("[updateRoom] sending active_clinician_id:", activeClinId);
     try {
       const res = await dashApi.updateRoom(room.id, name.trim(), activeClinId);
       if (!res.ok) throw new Error();
@@ -568,6 +575,7 @@ function RoomRow({
     setConfirm(null);
     // Auto-save immediately after reassignment
     setSaving(true);
+    console.log("[updateRoom reassign] sending active_clinician_id:", pendingClinId);
     try {
       const res = await dashApi.updateRoom(room.id, name.trim(), pendingClinId);
       if (!res.ok) throw new Error();
@@ -596,15 +604,11 @@ function RoomRow({
         <select value={activeClinId} onChange={(e) => handleClinicianChange(e.target.value)}
           className={`${inputCls} flex-1 min-w-0`}>
           <option value="">— Select clinician —</option>
-          {clinicians.map((c, i) => {
-            // Fallback to Xano row id or name if clinician_id is null/empty
-            const optVal = c.clinician_id || String((c as Record<string, unknown>).id ?? "") || c.name;
-            return (
-              <option key={optVal || i} value={optVal}>
-                {c.name}{c.role ? ` — ${c.role}` : ""}
-              </option>
-            );
-          })}
+          {clinicians.filter((c) => c.clinician_id).map((c) => (
+            <option key={c.clinician_id} value={c.clinician_id}>
+              {c.name}{c.role ? ` — ${c.role}` : ""}
+            </option>
+          ))}
         </select>
 
         <div className="flex items-center gap-1.5 relative">
@@ -852,7 +856,7 @@ export default function CliniciansPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[900px]">
+            <table className="w-full text-sm min-w-[1100px]">
               <thead>
                 <tr className="border-b border-border bg-off-white">
                   <th className={thSm}>Clinician</th>
@@ -860,6 +864,7 @@ export default function CliniciansPage() {
                   <th className={thSm}>Platform</th>
                   <th className={thSm}>Feedback URL</th>
                   <th className={thSm}>Submissions</th>
+                  <th className={thSm}>Rotation End</th>
                   <th className={thSm}>Room</th>
                   <th className={thSm}>QR Scans</th>
                   <th className={thSm}>Google Clicks</th>
@@ -932,6 +937,13 @@ export default function CliniciansPage() {
                         </span>
                       </td>
 
+                      {/* Rotation End */}
+                      <td className={td}>
+                        {c.rotation_end_date
+                          ? <span className="text-xs text-slate">{fmtDate(c.rotation_end_date)}</span>
+                          : <span className="text-xs text-slate-light italic">Ongoing</span>}
+                      </td>
+
                       {/* Room */}
                       <td className={td}>
                         {room
@@ -979,9 +991,12 @@ export default function CliniciansPage() {
                             title={hasRoom ? "Copy QR link" : "No room assigned"}
                             className="p-1.5 rounded-lg border border-border text-slate hover:border-nhs-blue hover:text-nhs-blue transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                             {copiedId === c.clinician_id ? (
-                              <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 text-nhs-green">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-                              </svg>
+                              <span className="flex items-center gap-1 text-[11px] font-semibold text-nhs-green whitespace-nowrap">
+                                <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 flex-shrink-0">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                                </svg>
+                                Copied!
+                              </span>
                             ) : (
                               <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
                                 <path d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z"/>

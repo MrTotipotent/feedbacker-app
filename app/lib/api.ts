@@ -221,8 +221,12 @@ export const dashApi = {
       body: JSON.stringify({ room_id, room_name, active_clinician_id }),
     }),
 
-  getEventCounts: (practice_id: number) =>
-    apiFetch(`${DASH_API}/get_event_counts?practice_id=${practice_id}`),
+  getEventCounts: (practice_id: number, month?: number, year?: number) => {
+    const p = new URLSearchParams({ practice_id: String(practice_id) });
+    if (month !== undefined) p.set("month", String(month));
+    if (year  !== undefined) p.set("year",  String(year));
+    return apiFetch(`${DASH_API}/get_event_counts?${p}`);
+  },
 
   /** PM only — sets which clinician is currently active for the practice QR */
   setActiveClinicianRotation: (

@@ -100,12 +100,14 @@ function KpiCard({
   sub,
   accent = "#005EB8",
   progress,       // 0–100
+  delta,          // absolute change vs last month; undefined = don't show; null = no prev data
 }: {
   label: string;
   value: React.ReactNode;
   sub?: React.ReactNode;
   accent?: string;
   progress?: number;
+  delta?: number | null;
 }) {
   return (
     <div
@@ -120,6 +122,16 @@ function KpiCard({
           {value}
         </p>
         {sub && <p className="text-xs text-slate-light mt-0.5">{sub}</p>}
+        {delta !== undefined && (
+          <p className="text-[11px] mt-0.5">
+            {delta === null
+              ? <span className="text-slate-light">— no previous data</span>
+              : delta >= 0
+              ? <span style={{ color: "#009639" }}>↑ {delta} from last month</span>
+              : <span style={{ color: "#DA291C" }}>↓ {Math.abs(delta)} from last month</span>
+            }
+          </p>
+        )}
       </div>
       {/* 3 px progress bar */}
       {progress !== undefined && (
@@ -310,7 +322,9 @@ type ActivityToggle = "month" | "all";
 export default function DashboardPage() {
   const [submissions,  setSubmissions]  = useState<Submission[]>([]);
   const [practice,     setPractice]     = useState<Practice | null>(null);
-  const [eventCounts,  setEventCounts]  = useState<EventCounts | null>(null);
+  const [eventCounts,          setEventCounts]          = useState<EventCounts | null>(null);
+  const [eventCountsMonth,     setEventCountsMonth]     = useState<EventCounts | null>(null);
+  const [eventCountsLastMonth, setEventCountsLastMonth] = useState<EventCounts | null>(null);
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState("");
   const [filterClinician, setFilterClinician] = useState("all");
@@ -338,8 +352,16 @@ export default function DashboardPage() {
           const pracData = await pracRes.clone().json().catch(() => null);
           const pid = pracData?.practice_id ?? pracData?.id;
           if (pid) {
-            dashApi.getEventCounts(pid).then(async (evRes) => {
-              if (evRes.ok) setEventCounts(await evRes.json());
+            const now  = new Date();
+            const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            Promise.all([
+              dashApi.getEventCounts(pid),
+              dashApi.getEventCounts(pid, now.getMonth() + 1, now.getFullYear()),
+              dashApi.getEventCounts(pid, prev.getMonth() + 1, prev.getFullYear()),
+            ]).then(async ([allRes, monthRes, lastRes]) => {
+              if (allRes.ok)   setEventCounts(await allRes.json());
+              if (monthRes.ok) setEventCountsMonth(await monthRes.json());
+              if (lastRes.ok)  setEventCountsLastMonth(await lastRes.json());
             }).catch(() => {});
           }
         }
@@ -415,6 +437,18 @@ export default function DashboardPage() {
   function dimTrend(key: DimensionKey): number | null {
     if (!thisMonthSubs.length || !lastMonthSubs.length) return null;
     return avg(thisMonthSubs, key) - avg(lastMonthSubs, key);
+  }
+
+  // ── Activity event helpers ───────────────────────────────────────────────
+
+  // Which counts to display depends on the toggle
+  const activeEvents = activityToggle === "month" ? eventCountsMonth : eventCounts;
+
+  function eventDelta(key: keyof EventCounts): number | null {
+    const curr = eventCountsMonth?.[key] as number | null | undefined;
+    const prev = eventCountsLastMonth?.[key] as number | null | undefined;
+    if (curr == null || prev == null) return null;
+    return curr - prev;
   }
 
   // ── Clinician filter / table ────────────────────────────────────────────
@@ -523,35 +557,24 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <KpiCard
               label="QR Scans"
-              value={eventCounts ? (eventCounts.qr_scans ?? 0) : "—"}
-              sub={
-                // TODO: pass month/year params to getEventCounts when endpoint supports it,
-                // then compute delta vs last month. Show "—" until then.
-                activityToggle === "month"
-                  ? "this month · delta: —"
-                  : "total room QR scans"
-              }
+              value={activeEvents ? (activeEvents.qr_scans ?? 0) : "—"}
+              sub={activityToggle === "month" ? "this month" : "total room QR scans"}
               accent="#005EB8"
+              delta={activityToggle === "month" ? eventDelta("qr_scans") : undefined}
             />
             <KpiCard
               label="Google Review Clicks"
-              value={eventCounts ? (eventCounts.google_clicks ?? 0) : "—"}
-              sub={
-                activityToggle === "month"
-                  ? "this month · delta: —"
-                  : "patients tapped Google review"
-              }
+              value={activeEvents ? (activeEvents.google_clicks ?? 0) : "—"}
+              sub={activityToggle === "month" ? "this month" : "patients tapped Google review"}
               accent="#009639"
+              delta={activityToggle === "month" ? eventDelta("google_clicks") : undefined}
             />
             <KpiCard
               label="Feedback Form Clicks"
-              value={eventCounts ? (eventCounts.feedback_clicks ?? 0) : "—"}
-              sub={
-                activityToggle === "month"
-                  ? "this month · delta: —"
-                  : "patients tapped feedback form"
-              }
+              value={activeEvents ? (activeEvents.feedback_clicks ?? 0) : "—"}
+              sub={activityToggle === "month" ? "this month" : "patients tapped feedback form"}
               accent="#00A9CE"
+              delta={activityToggle === "month" ? eventDelta("feedback_clicks") : undefined}
             />
           </div>
         </section>
