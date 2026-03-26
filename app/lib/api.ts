@@ -164,6 +164,8 @@ export const dashApi = {
 
   getClinicians: () => apiFetch(`${DASH_API}${DASH_PREFIX}/clinicians`),
 
+  getClinicianDashboard: () => apiFetch(`${DASH_API}${DASH_PREFIX}/get_clinician_dashboard`),
+
   /** Fire-and-forget after a successful create_submission.
    *  Recalculates and persists the profile table averages for the
    *  authenticated clinician / PM.  Requires a valid Bearer token;
@@ -173,9 +175,12 @@ export const dashApi = {
 
   addClinician: (data: {
     name: string;
+    email?: string;
     role?: string;
     redirect_platform?: string;
     redirect_url?: string;
+    rotation_start_date?: string;
+    rotation_end_date?: string;
     rotation_duration_weeks?: number;
   }) =>
     apiFetch(`${DASH_API}${DASH_PREFIX}/add_clinician`, {
@@ -183,12 +188,13 @@ export const dashApi = {
       body: JSON.stringify(data),
     }),
 
-  updateRedirectUrl: (redirect_url: string, redirect_platform?: string) =>
+  updateRedirectUrl: (redirect_url: string, redirect_platform?: string, clinician_id?: string) =>
     apiFetch(`${DASH_API}${DASH_PREFIX}/update_redirect_url`, {
       method: "PATCH",
       body: JSON.stringify({
         redirect_url,
         ...(redirect_platform ? { redirect_platform } : {}),
+        ...(clinician_id ? { clinician_id } : {}),
       }),
     }),
 

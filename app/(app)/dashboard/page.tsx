@@ -305,6 +305,8 @@ function DetailPanel({
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
+type ActivityToggle = "month" | "all";
+
 export default function DashboardPage() {
   const [submissions,  setSubmissions]  = useState<Submission[]>([]);
   const [practice,     setPractice]     = useState<Practice | null>(null);
@@ -314,6 +316,7 @@ export default function DashboardPage() {
   const [filterClinician, setFilterClinician] = useState("all");
   const [selected,     setSelected]     = useState<Submission | null>(null);
   const [cqcTarget,    setCqcTarget]    = useState<number>(4.0);
+  const [activityToggle, setActivityToggle] = useState<ActivityToggle>("month");
 
   useEffect(() => {
     // Load CQC target from localStorage (set in Settings)
@@ -491,7 +494,69 @@ export default function DashboardPage() {
 
       <div className="px-6 lg:px-8 pb-10 space-y-8">
 
-        {/* ── 2. KPI cards (4) ──────────────────────────────────────────── */}
+        {/* ── 2. Activity (Room event counts) ───────────────────────────── */}
+        <section>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-nhs-blue-dark">Activity</h2>
+              <p className="text-sm text-slate-light mt-0.5">
+                Room QR code engagement across all rooms
+              </p>
+            </div>
+            {/* Time toggle */}
+            <div className="flex items-center gap-1 bg-off-white border border-border rounded-xl p-1 flex-shrink-0">
+              {(["month", "all"] as ActivityToggle[]).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setActivityToggle(t)}
+                  className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${
+                    activityToggle === t
+                      ? "bg-nhs-blue text-white shadow-sm"
+                      : "text-slate-light hover:text-slate"
+                  }`}
+                >
+                  {t === "month" ? "This Month" : "All Time"}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <KpiCard
+              label="QR Scans"
+              value={eventCounts ? (eventCounts.qr_scans ?? 0) : "—"}
+              sub={
+                // TODO: pass month/year params to getEventCounts when endpoint supports it,
+                // then compute delta vs last month. Show "—" until then.
+                activityToggle === "month"
+                  ? "this month · delta: —"
+                  : "total room QR scans"
+              }
+              accent="#005EB8"
+            />
+            <KpiCard
+              label="Google Review Clicks"
+              value={eventCounts ? (eventCounts.google_clicks ?? 0) : "—"}
+              sub={
+                activityToggle === "month"
+                  ? "this month · delta: —"
+                  : "patients tapped Google review"
+              }
+              accent="#009639"
+            />
+            <KpiCard
+              label="Feedback Form Clicks"
+              value={eventCounts ? (eventCounts.feedback_clicks ?? 0) : "—"}
+              sub={
+                activityToggle === "month"
+                  ? "this month · delta: —"
+                  : "patients tapped feedback form"
+              }
+              accent="#00A9CE"
+            />
+          </div>
+        </section>
+
+        {/* ── 3. KPI cards (4) ──────────────────────────────────────────── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard
             label="Total Submissions"
@@ -526,36 +591,6 @@ export default function DashboardPage() {
             progress={avgFeedbackerScore > 0 ? Math.min(100, (avgFeedbackerScore / cqcTarget) * 100) : 0}
           />
         </div>
-
-        {/* ── 3. Activity (Room event counts) ───────────────────────────── */}
-        <section>
-          <div className="mb-4">
-            <h2 className="text-lg font-bold text-nhs-blue-dark">Activity</h2>
-            <p className="text-sm text-slate-light mt-0.5">
-              Room QR code engagement across all rooms
-            </p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <KpiCard
-              label="QR Scans"
-              value={eventCounts ? (eventCounts.qr_scans ?? 0) : "—"}
-              sub="total room QR scans"
-              accent="#005EB8"
-            />
-            <KpiCard
-              label="Google Review Clicks"
-              value={eventCounts ? (eventCounts.google_clicks ?? 0) : "—"}
-              sub="patients tapped Google review"
-              accent="#009639"
-            />
-            <KpiCard
-              label="Feedback Form Clicks"
-              value={eventCounts ? (eventCounts.feedback_clicks ?? 0) : "—"}
-              sub="patients tapped feedback form"
-              accent="#00A9CE"
-            />
-          </div>
-        </section>
 
         {/* ── 4. Performance overview ────────────────────────────────────── */}
         <section>

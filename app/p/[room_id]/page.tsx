@@ -98,19 +98,14 @@ export default function RoomLandingPage({
       clinician.clinician_id,
       room.practice_id
     ).catch(() => {});
-    const isExternal = clinician.redirect_url?.trim().startsWith("http");
-    if (isExternal) {
-      window.open(clinician.redirect_url!, "_blank", "noopener,noreferrer");
-      return;
-    }
     const sentimentEnc = sentiment.trim()
       ? `&sentiment=${encodeURIComponent(sentiment.trim())}`
       : "";
-    window.open(
-      `/survey?id=${encodeURIComponent(clinician.clinician_id)}${sentimentEnc}`,
-      "_blank",
-      "noopener,noreferrer"
-    );
+    const feedbackUrl =
+      clinician.redirect_platform === "feedbacker" || !clinician.redirect_url
+        ? `/survey?clinician_id=${encodeURIComponent(clinician.clinician_id)}${sentimentEnc}`
+        : clinician.redirect_url;
+    window.open(feedbackUrl, "_blank", "noopener,noreferrer");
   }
 
   // ── Loading / error ────────────────────────────────────────────────────────
