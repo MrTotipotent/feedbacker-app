@@ -394,11 +394,11 @@ function AddClinicianModal({ onClose, onSuccess }: { onClose: () => void; onSucc
     }
 
     const rotation_duration_weeks = endDate && startDate
-      ? Math.round(
+      ? Math.max(1, Math.round(
           (new Date(endDate).getTime() - new Date(startDate).getTime()) /
           (1000 * 60 * 60 * 24 * 7)
-        )
-      : 0;
+        ))
+      : undefined;
 
     setSaving(true);
     setErr("");
@@ -689,12 +689,32 @@ export default function CliniciansPage() {
 
   const loadClinicians = useCallback(async () => {
     try {
-      const res = await dashApi.getClinicianDashboard();
-      if (res.ok) {
-        const data = await res.json();
-        setClinicians(Array.isArray(data) ? data : []);
-      } else {
-        setError(`Failed to load clinicians (${res.status})`);
+      // Load from both endpoints and merge — getClinicianDashboard may
+      // exclude newly added clinicians that don't yet have auth records.
+      // getClinicians returns all clinician rows regardless of auth status.
+      const [dashRes, listRes] = await Promise.all([
+        dashApi.getClinicianDashboard(),
+        dashApi.getClinicians(),
+      ]);
+
+      const dashData: ClinicianRow[] = dashRes.ok
+        ? (await dashRes.json().then((d: unknown) => Array.isArray(d) ? d : []) as ClinicianRow[])
+        : [];
+
+      const listData: ClinicianRow[] = listRes.ok
+        ? (await listRes.json().then((d: unknown) => Array.isArray(d) ? d : []) as ClinicianRow[])
+        : [];
+
+      // Merge: keep dashboard rows (they have submission counts), then
+      // append any entries from /clinicians that are missing from dashboard.
+      const dashIds = new Set(dashData.map((c) => c.clinician_id).filter(Boolean));
+      const extras = listData.filter((c) => !c.clinician_id || !dashIds.has(c.clinician_id));
+      const merged = [...dashData, ...extras];
+
+      if (merged.length > 0) {
+        setClinicians(merged);
+      } else if (!dashRes.ok) {
+        setError(`Failed to load clinicians (${dashRes.status})`);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
