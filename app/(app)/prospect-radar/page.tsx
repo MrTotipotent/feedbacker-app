@@ -35,6 +35,7 @@ interface CQCLocation {
   postalAddressTownCity?:  string | null;
   postalAddressCounty?:    string | null;
   currentRatings?:         CQCRatings | null;
+  locationUrl?:            string | null; // CQC profile page URL for scraping
 }
 
 interface GoogleResult {
@@ -52,6 +53,7 @@ interface Prospect {
   website:              string;
   region:               string;
   odsCode:              string;
+  cqcProfileUrl:        string; // CQC location page URL for scraping + linking
   // CQC
   cqcOverallRating:     string;
   cqcResponsiveRating:  string;
@@ -84,11 +86,15 @@ const LS_PROSPECTS   = "pr_prospects";
 const LS_PROSPECTS_TS = "pr_prospects_ts";
 const LS_TOTAL       = "pr_total_scanned";
 
-const CACHE_TTL     = 24 * 60 * 60 * 1000; // 24 h
-const PAGE_SIZE     = 50;
-const GOOGLE_BATCH  = 5;   // fetch N Google ratings in parallel
-const GOOGLE_LIMIT  = 200; // max practices to fetch Google for
-const GOOGLE_DELAY  = 200; // ms between batches
+const CACHE_TTL         = 24 * 60 * 60 * 1000; // 24 h
+const PAGE_SIZE         = 50;
+const GOOGLE_BATCH      = 5;   // Google ratings fetched in parallel
+const GOOGLE_LIMIT      = 200; // max practices to Google-fetch per refresh
+const GOOGLE_DELAY      = 200; // ms between Google batches
+const CQC_SCRAPE_BATCH  = 10;  // CQC pages scraped in parallel
+const CQC_SCRAPE_LIMIT  = 500; // max practices to scrape per refresh session
+const CQC_SCRAPE_DELAY  = 1000; // ms between scrape batches (be respectful)
+const LS_CQC_RATING_PFX = "pr_cqcr_"; // localStorage key prefix for scraped ratings
 
 // Default GPPS URL — update annually when NHS England publishes new data.
 // Find the practice-level CSV at https://www.gp-patient.co.uk/performance
@@ -281,6 +287,7 @@ function RatingBadge({ rating }: { rating: string }) {
     : r.includes("inadequate") ? "Inadequate"
     : r.includes("outstanding") ? "Outstanding"
     : r.includes("good") ? "Good"
+    : r === "—" ? "—"
     : "Not rated";
 
   return (
@@ -385,6 +392,7 @@ export default function ProspectRadar() {
       .map((r) => {
         const addr  = r.address ?? "";
         const parts = addr.split(",").map((s) => s.trim()).filter(Boolean);
+        const locUrl = (r.location_url ?? "").trim();
         return {
           locationId:             (r.cqc_location_id_for_office_use_only ?? "").trim() || `dir-${r.name}-${r.postcode}`,
           locationName:           (r.name ?? "").trim(),
@@ -398,6 +406,7 @@ export default function ProspectRadar() {
           postalAddressCounty:    null,
           odsCode:                null,
           currentRatings:         null,
+          locationUrl:            locUrl || null,
         };
       });
 
@@ -491,6 +500,34 @@ export default function ProspectRadar() {
     }
   }
 
+  // ── Scrape CQC ratings for one location ──────────────────────────────────
+  // Results are cached in localStorage indefinitely (ratings change rarely).
+  async function fetchCQCRatings(
+    loc: CQCLocation
+  ): Promise<{ overall: string; responsive: string }> {
+    const cacheKey = LS_CQC_RATING_PFX + loc.locationId;
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) return JSON.parse(cached) as { overall: string; responsive: string };
+    } catch { /* ignore corrupt cache */ }
+
+    const url = loc.locationUrl;
+    if (!url) return { overall: "—", responsive: "—" };
+
+    try {
+      const res  = await fetch(`/api/cqc-scrape?url=${encodeURIComponent(url)}`);
+      const data = await res.json() as { overall?: string; responsive?: string };
+      const result = {
+        overall:    data.overall    ?? "—",
+        responsive: data.responsive ?? "—",
+      };
+      localStorage.setItem(cacheKey, JSON.stringify(result));
+      return result;
+    } catch {
+      return { overall: "—", responsive: "—" };
+    }
+  }
+
   // ── Build a Prospect from a CQC directory entry ──────────────────────────
   // CQC flag is always false — the directory CSV has no domain ratings.
   // GPPS matching requires ODS codes; the directory CSV doesn't include them,
@@ -505,6 +542,20 @@ export default function ProspectRadar() {
       loc.postalAddressTownCity,
     ].filter(Boolean).join(", ");
 
+    // Check localStorage for a previously scraped CQC rating for this location
+    const cachedRating = typeof window !== "undefined"
+      ? (() => {
+          try {
+            const raw = localStorage.getItem(LS_CQC_RATING_PFX + loc.locationId);
+            return raw ? (JSON.parse(raw) as { overall: string; responsive: string }) : null;
+          } catch { return null; }
+        })()
+      : null;
+
+    const cqcOverall    = cachedRating?.overall    ?? "—";
+    const cqcResponsive = cachedRating?.responsive ?? "—";
+    const cqcFlag       = cqcResponsive === "Requires Improvement" || cqcResponsive === "Inadequate";
+
     return {
       locationId:           loc.locationId,
       practiceName:         loc.locationName,
@@ -514,16 +565,17 @@ export default function ProspectRadar() {
       website:              loc.website     ?? "",
       region:               loc.region      ?? "",
       odsCode,
-      cqcOverallRating:     "N/A",
-      cqcResponsiveRating:  "N/A",
+      cqcProfileUrl:        loc.locationUrl ?? "",
+      cqcOverallRating:     cqcOverall,
+      cqcResponsiveRating:  cqcResponsive,
       lastInspectionDate:   null,
-      cqcFlag:              false,
+      cqcFlag,
       gppsScore,
       gppsFlag,
       googleRating:         null,
       googleCount:          0,
       googleFlag:           false,
-      heatScore:            computeHeat(false, gppsFlag, false),
+      heatScore:            computeHeat(cqcFlag, gppsFlag, false),
     };
   }
 
@@ -545,20 +597,58 @@ export default function ProspectRadar() {
       const gppsP25 = parseFloat(localStorage.getItem(LS_GPPS_P25) ?? "0");
       setProgress(52);
 
-      // 3 ── Build initial prospects (50–60%)
+      // 3 ── Build initial prospects (50–55%)
       setLoadPhase("Building prospect list…");
       const list: Prospect[] = cqcAll.map((loc) => buildProspect(loc, gppsMap, gppsP25));
       list.sort((a, b) => b.heatScore - a.heatScore);
       setProspects([...list]);
-      setProgress(60);
+      setProgress(55);
 
-      // 4 ── Google ratings for flagged practices (60–100%)
+      // 4 ── CQC scraping — batch scrape location pages, skip cached (55–75%)
+      const locById = new Map(cqcAll.map((l) => [l.locationId, l]));
+      const toScrape = list
+        .filter((p) => p.cqcProfileUrl && p.cqcOverallRating === "—")
+        .slice(0, CQC_SCRAPE_LIMIT);
+
+      if (toScrape.length > 0) {
+        for (let i = 0; i < toScrape.length; i += CQC_SCRAPE_BATCH) {
+          if (abortRef.current) break;
+
+          const batch = toScrape.slice(i, i + CQC_SCRAPE_BATCH);
+          await Promise.all(
+            batch.map(async (p) => {
+              const loc = locById.get(p.locationId);
+              if (!loc) return;
+              const result = await fetchCQCRatings(loc);
+              p.cqcOverallRating    = result.overall;
+              p.cqcResponsiveRating = result.responsive;
+              p.cqcFlag             = result.responsive === "Requires Improvement" || result.responsive === "Inadequate";
+              p.heatScore           = computeHeat(p.cqcFlag, p.gppsFlag, p.googleFlag);
+            })
+          );
+
+          const done = Math.min(i + CQC_SCRAPE_BATCH, toScrape.length);
+          setProgress(55 + Math.round((done / toScrape.length) * 20));
+          setLoadPhase(`Fetching CQC ratings (${done} / ${toScrape.length})…`);
+          setProspects([...list].sort((a, b) => b.heatScore - a.heatScore));
+
+          if (i + CQC_SCRAPE_BATCH < toScrape.length) {
+            await new Promise<void>((r) => setTimeout(r, CQC_SCRAPE_DELAY));
+          }
+        }
+      }
+      setProgress(75);
+
+      // 5 ── Google ratings for flagged + top practices (75–100%)
       const key = localStorage.getItem(LS_GKEY) ?? "";
-      // Without CQC ratings we have no pre-filter — take the first GOOGLE_LIMIT practices
-      const toGoogle = list.slice(0, GOOGLE_LIMIT);
+      // Prioritise CQC-flagged practices for Google lookup, then pad with top heat
+      const toGoogle = [
+        ...list.filter((p) => p.cqcFlag),
+        ...list.filter((p) => !p.cqcFlag),
+      ].slice(0, GOOGLE_LIMIT);
 
       if (key && toGoogle.length > 0) {
-        const cqcById = new Map(cqcAll.map((l) => [l.locationId, l]));
+        const cqcById = locById;
 
         for (let i = 0; i < toGoogle.length; i += GOOGLE_BATCH) {
           if (abortRef.current) break;
@@ -576,7 +666,7 @@ export default function ProspectRadar() {
           );
 
           const done = Math.min(i + GOOGLE_BATCH, toGoogle.length);
-          setProgress(60 + Math.round((done / toGoogle.length) * 40));
+          setProgress(75 + Math.round((done / toGoogle.length) * 25));
           setLoadPhase(`Fetching Google ratings (${done} / ${toGoogle.length})…`);
           // Re-render with partial Google data
           setProspects([...list].sort((a, b) => b.heatScore - a.heatScore));
@@ -838,6 +928,7 @@ export default function ProspectRadar() {
                 <tr className="border-b border-border bg-off-white">
                   <th className={thCls}>Practice</th>
                   <th className={thCls}>Address</th>
+                  <th className={thCls}>CQC Ratings</th>
                   <th className={thCls}>
                     <button onClick={() => toggleSort("gpps")}
                       className="flex items-center gap-1 hover:text-nhs-blue transition-colors">
@@ -871,7 +962,7 @@ export default function ProspectRadar() {
                       className="hover:bg-off-white/60 transition-colors"
                       style={rowBg ? { background: rowBg } : undefined}>
 
-                      {/* Practice name + phone + website */}
+                      {/* Practice name + phone + website + CQC link */}
                       <td className={tdCls} style={{ minWidth: 200 }}>
                         <p className="font-semibold text-nhs-blue-dark leading-tight">{p.practiceName}</p>
                         {p.phone && <p className="text-xs text-slate-light mt-0.5">{p.phone}</p>}
@@ -882,6 +973,12 @@ export default function ProspectRadar() {
                             {p.website}
                           </a>
                         )}
+                        {p.cqcProfileUrl && (
+                          <a href={p.cqcProfileUrl} target="_blank" rel="noreferrer"
+                            className="text-[10px] text-slate-light hover:text-nhs-blue hover:underline mt-0.5 block">
+                            CQC profile →
+                          </a>
+                        )}
                       </td>
 
                       {/* Address */}
@@ -889,6 +986,24 @@ export default function ProspectRadar() {
                         <p className="text-xs text-slate leading-snug">{p.address || "—"}</p>
                         <p className="font-mono text-[11px] text-slate-light mt-0.5">{p.postcode}</p>
                         <p className="text-[11px] text-slate-light">{p.region}</p>
+                      </td>
+
+                      {/* CQC ratings */}
+                      <td className={tdCls} style={{ minWidth: 170 }}>
+                        {p.cqcOverallRating === "—" ? (
+                          <span className="text-xs text-slate-light">Not yet fetched</span>
+                        ) : (
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[10px] text-slate-light">Overall:</span>
+                              <RatingBadge rating={p.cqcOverallRating} />
+                            </div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[10px] text-slate-light">Responsive:</span>
+                              <RatingBadge rating={p.cqcResponsiveRating} />
+                            </div>
+                          </div>
+                        )}
                       </td>
 
                       {/* GPPS overall experience */}
