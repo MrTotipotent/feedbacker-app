@@ -812,6 +812,7 @@ export default function CliniciansPage() {
   const [copiedId,      setCopiedId]      = useState("");
   const [toggle,        setToggle]        = useState<TimeToggle>("month");
   const [addingRoom,    setAddingRoom]    = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -821,6 +822,23 @@ export default function CliniciansPage() {
   function showCopied(id: string) {
     setCopiedId(id);
     setTimeout(() => setCopiedId(""), 2000);
+  }
+
+  async function handleDeleteClinician(id: string) {
+    setConfirmDelete(null);
+    try {
+      const res = await dashApi.deleteClinician(id);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { message?: string };
+        showToast(`Delete failed: ${err?.message ?? res.status}`);
+        return;
+      }
+      // Remove the row instantly — no full page reload needed
+      setClinicians((prev) => prev.filter((c) => c.clinician_id !== id));
+      showToast("Clinician removed");
+    } catch {
+      showToast("Delete failed — please try again");
+    }
   }
 
   const loadClinicians = useCallback(async () => {
@@ -1146,6 +1164,16 @@ export default function CliniciansPage() {
                       {/* Actions */}
                       <td className={`${td} text-right`}>
                         <div className="flex items-center justify-end gap-1.5">
+                          {/* Delete clinician */}
+                          <button
+                            title={`Remove ${c.name}`}
+                            onClick={() => setConfirmDelete({ id: c.clinician_id, name: c.name })}
+                            className="p-1.5 rounded-lg border border-border text-red-400 hover:border-red-400 hover:bg-red-50 transition-colors"
+                          >
+                            <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                              <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd"/>
+                            </svg>
+                          </button>
                           {/* Preview QR */}
                           {hasRoom && (
                             <button title="Preview QR"
@@ -1245,6 +1273,32 @@ export default function CliniciansPage() {
             loadRooms();
           }}
         />
+      )}
+
+      {/* Delete confirmation dialog */}
+      {confirmDelete && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-[10px] border border-border shadow-2xl max-w-sm w-full p-6">
+            <h3 className="text-base font-bold text-nhs-blue-dark mb-2">Remove Clinician</h3>
+            <p className="text-sm text-slate mb-6">
+              Are you sure you want to remove <strong>{confirmDelete.name}</strong>? This cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmDelete(null)}
+                className="text-sm font-semibold px-4 py-2 rounded-lg border border-border text-slate hover:bg-off-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteClinician(confirmDelete.id)}
+                className="text-sm font-semibold px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Toast */}

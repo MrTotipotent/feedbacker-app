@@ -101,6 +101,7 @@ function KpiCard({
   accent = "#005EB8",
   progress,       // 0–100
   delta,          // absolute change vs last month; undefined = don't show; null = no prev data
+  tooltip,        // ℹ hover text shown next to the label
 }: {
   label: string;
   value: React.ReactNode;
@@ -108,6 +109,7 @@ function KpiCard({
   accent?: string;
   progress?: number;
   delta?: number | null;
+  tooltip?: string;
 }) {
   return (
     <div
@@ -115,8 +117,11 @@ function KpiCard({
       style={{ boxShadow: "0 2px 12px rgba(0,94,184,0.08)" }}
     >
       <div className="p-5 flex flex-col gap-1 flex-1">
-        <p className="text-[11px] font-semibold text-slate-light uppercase tracking-wider">
+        <p className="text-[11px] font-semibold text-slate-light uppercase tracking-wider flex items-center gap-1">
           {label}
+          {tooltip && (
+            <span title={tooltip} className="cursor-help text-slate-light/50 normal-case tracking-normal font-normal text-[10px]">ℹ</span>
+          )}
         </p>
         <p className="font-serif text-3xl leading-tight mt-1" style={{ color: accent }}>
           {value}
@@ -330,7 +335,7 @@ export default function DashboardPage() {
   const [filterClinician, setFilterClinician] = useState("all");
   const [selected,     setSelected]     = useState<Submission | null>(null);
   const [cqcTarget,    setCqcTarget]    = useState<number>(4.0);
-  const [activityToggle, setActivityToggle] = useState<ActivityToggle>("month");
+  const [activityToggle, setActivityToggle] = useState<ActivityToggle>("all");
 
   useEffect(() => {
     // Load CQC target from localStorage (set in Settings)
@@ -582,11 +587,12 @@ export default function DashboardPage() {
         {/* ── 3. KPI cards (4) ──────────────────────────────────────────── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard
-            label="Total Submissions"
+            label="Clinician Feedback Forms Completed"
             value={totalSubs}
             sub="all time"
             accent="#003d7a"
             progress={Math.min(100, (totalSubs / Math.max(totalSubs, 50)) * 100)}
+            tooltip="Only counts submissions via the Feedbacker native feedback form."
           />
           <KpiCard
             label="Avg Feedbacker Score"
@@ -596,13 +602,14 @@ export default function DashboardPage() {
             progress={avgFeedbackerScore > 0 ? (avgFeedbackerScore / 5) * 100 : 0}
           />
           <KpiCard
-            label="Submissions This Month"
+            label="Forms Completed This Month"
             value={thisMonthCount}
             sub={mthChangePct !== null
               ? `${mthChangeLabel} vs last month`
               : "no data last month"}
             accent="#003d7a"
             progress={Math.min(100, totalSubs > 0 ? (thisMonthCount / Math.max(totalSubs, 1)) * 300 : 0)}
+            tooltip="Only counts submissions via the Feedbacker native feedback form."
           />
           <KpiCard
             label={`Internal CQC Target — ${cqcTarget.toFixed(1)}/5.0`}
