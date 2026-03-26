@@ -647,12 +647,12 @@ export default function DashboardPage() {
           )}
         </section>
 
-        {/* ── 5. Individual submissions ──────────────────────────────────── */}
+        {/* ── 5. Individual metrics ────────────────────────────────────────── */}
         <section>
           <div className="mb-4 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
             <div>
               <h2 className="text-lg font-bold text-nhs-blue-dark">
-                Individual Submissions
+                Individual Metrics
               </h2>
               <p className="text-sm text-slate-light mt-0.5">
                 All responses — click View for full detail
@@ -693,7 +693,7 @@ export default function DashboardPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border bg-off-white">
-                      {["Date", "Clinician", "Platform", "Overall", "Sentiment", ""].map((h, i) => (
+                      {["Date", "Clinician", "Platform", "QR Scans", "Sentiment", ""].map((h, i) => (
                         <th
                           key={i}
                           className={`px-5 py-3 text-[11px] font-bold text-slate-light uppercase tracking-wider ${i < 5 ? "text-left" : ""}`}
@@ -726,8 +726,8 @@ export default function DashboardPage() {
                             {s.redirect_platform || "Feedbacker"}
                           </span>
                         </td>
-                        <td className="px-5 py-3.5">
-                          <StarBar score={s.score_recommendation ?? 0} />
+                        <td className="px-5 py-3.5 font-semibold text-slate">
+                          —
                         </td>
                         <td className="px-5 py-3.5 text-slate-light max-w-xs">
                           {s.sentiment

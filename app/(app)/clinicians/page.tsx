@@ -96,9 +96,8 @@ function countEvents(
         (toggle === "all" || (e.created_at ? isThisMonth(e.created_at) : false))
     ).length;
   }
-  // TODO: get_event_counts returned an aggregate object, not per-event rows.
-  // Per-clinician + time-filtered counts are not available from this shape.
-  // Update the Xano endpoint to return per-event rows to enable this filtering.
+  // Aggregate shape (no event_type field): per-clinician lookup is handled
+  // in the caller via aggRow. Raw per-event rows are handled above.
   return 0;
 }
 
@@ -1010,13 +1009,13 @@ export default function CliniciansPage() {
                   <th className={thSm}>ID</th>
                   <th className={thSm}>Platform</th>
                   <th className={thSm}>Feedback URL</th>
-                  <th className={thSm}>Submissions</th>
                   <th className={thSm}>Rotation Start</th>
                   <th className={thSm}>Rotation End</th>
                   <th className={thSm}>Room</th>
                   <th className={thSm}>QR Scans</th>
-                  <th className={thSm}>Google Clicks</th>
-                  <th className={thSm}>Feedback Clicks</th>
+                  <th className={thSm}>Google Reviews</th>
+                  <th className={thSm}>Feedbacks Completed</th>
+                  <th className={thSm}>Submissions</th>
                   <th className={`${thSm} text-right`}>Actions</th>
                 </tr>
               </thead>
@@ -1025,9 +1024,21 @@ export default function CliniciansPage() {
                   const room    = roomByClinicianId[c.clinician_id];
                   const hasRoom = !!room;
 
-                  const qrScans       = isEventsRaw ? countEvents(events, c.clinician_id, "qr_scan",            toggle) : null;
-                  const googleClicks  = isEventsRaw ? countEvents(events, c.clinician_id, "google_review_click", toggle) : null;
-                  const fbClicks      = isEventsRaw ? countEvents(events, c.clinician_id, "feedback_click",      toggle) : null;
+                  // For aggregate per-clinician shape (no event_type field), look up by clinician_id
+                  // and default null fields to 0. For raw per-event rows, count via countEvents.
+                  const aggRow = !isEventsRaw && events.length > 0
+                    ? events.find((e) => e.clinician_id === c.clinician_id)
+                    : undefined;
+
+                  const qrScans       = isEventsRaw
+                    ? countEvents(events, c.clinician_id, "qr_scan",             toggle)
+                    : aggRow ? (aggRow.qr_scans       ?? 0) : null;
+                  const googleReviews = isEventsRaw
+                    ? countEvents(events, c.clinician_id, "google_review_click", toggle)
+                    : aggRow ? (aggRow.google_clicks   ?? 0) : null;
+                  const fbCompleted   = isEventsRaw
+                    ? countEvents(events, c.clinician_id, "feedback_click",      toggle)
+                    : aggRow ? (aggRow.feedback_clicks ?? 0) : null;
 
                   const plt = (c.redirect_platform ?? "feedbacker").toLowerCase();
                   const pltLabel = plt === "feedbacker" ? "Feedbacker" : plt === "14fish" ? "14Fish" : "Custom";
@@ -1078,13 +1089,6 @@ export default function CliniciansPage() {
                         <InlineUrlEdit clinician={c} onSaved={loadClinicians} />
                       </td>
 
-                      {/* Submissions */}
-                      <td className={td}>
-                        <span className="font-semibold text-slate">
-                          {c.total_submissions != null ? c.total_submissions : "—"}
-                        </span>
-                      </td>
-
                       {/* Rotation Start — inline editable */}
                       <td className={td}>
                         <InlineDateEdit
@@ -1119,14 +1123,21 @@ export default function CliniciansPage() {
                         <span className="font-semibold text-slate">{qrScans ?? "—"}</span>
                       </td>
 
-                      {/* Google Clicks */}
+                      {/* Google Reviews */}
                       <td className={td}>
-                        <span className="font-semibold text-slate">{googleClicks ?? "—"}</span>
+                        <span className="font-semibold text-slate">{googleReviews ?? "—"}</span>
                       </td>
 
-                      {/* Feedback Clicks */}
+                      {/* Feedbacks Completed */}
                       <td className={td}>
-                        <span className="font-semibold text-slate">{fbClicks ?? "—"}</span>
+                        <span className="font-semibold text-slate">{fbCompleted ?? "—"}</span>
+                      </td>
+
+                      {/* Submissions */}
+                      <td className={td}>
+                        <span className="font-semibold text-slate">
+                          {c.total_submissions != null ? c.total_submissions : "—"}
+                        </span>
                       </td>
 
                       {/* Actions */}
@@ -1147,13 +1158,15 @@ export default function CliniciansPage() {
                               </svg>
                             </button>
                           )}
-                          {/* Copy link */}
+                          {/* Copy link — "Unavailable" when no room is assigned */}
                           <button
                             onClick={copyLink}
                             disabled={!hasRoom}
                             title={hasRoom ? "Copy QR link" : "No room assigned"}
                             className="p-1.5 rounded-lg border border-border text-slate hover:border-nhs-blue hover:text-nhs-blue transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-                            {copiedId === c.clinician_id ? (
+                            {!hasRoom ? (
+                              <span className="text-[11px] font-semibold text-slate-light whitespace-nowrap">Unavailable</span>
+                            ) : copiedId === c.clinician_id ? (
                               <span className="flex items-center gap-1 text-[11px] font-semibold text-nhs-green whitespace-nowrap">
                                 <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 flex-shrink-0">
                                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
