@@ -14,16 +14,14 @@ interface Room {
 
 interface RoomClinician {
   clinician_id: string;
-  clinician_name: string;
-  practice_name: string;
-  google_review_url?: string;
-  redirect_url?: string;
-  redirect_platform?: string;
-  // Channel rotation fields (returned by get_room after Xano schema update)
-  rotation_enabled?: boolean;
-  nhs_review_url?: string;
-  healthwatch_url?: string;
-  fft_url?: string;
+  clinician_name: string;   // mapped from API field "name"
+  google_review_url: string;
+  redirect_url: string;
+  redirect_platform: string;
+  rotation_enabled: boolean;
+  nhs_review_url: string;
+  healthwatch_url: string;
+  fft_url: string;
 }
 
 type Step = 1 | 2;
@@ -34,7 +32,7 @@ type Step = 1 | 2;
 // Set to null to use the real current day, or a number to force a specific day:
 //   0=Sun  1=Mon  2=Tue  3=Wed  4=Thu  5=Fri  6=Sat
 // DEBUG ONLY — remove before production
-const DEBUG_DAY_OVERRIDE: number | null = 3;
+const DEBUG_DAY_OVERRIDE: number | null = null;
 
 export default function RoomLandingPage({
   params,
@@ -63,13 +61,30 @@ export default function RoomLandingPage({
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message ?? "Room not found.");
       if (!data?.clinician) throw new Error("No clinician assigned to this room.");
+
       setRoom(data.room);
-      setClinician(data.clinician);
+
+      // Normalise the clinician payload — Xano returns "name" not "clinician_name",
+      // and rotation / review fields may live on the practice object or be absent.
+      const c = data.clinician;
+      const p = data.practice ?? {};   // practice sub-object if Xano returns it
+      setClinician({
+        clinician_id:       c.clinician_id      ?? "",
+        clinician_name:     c.name              ?? c.clinician_name ?? "",
+        google_review_url:  c.google_review_url ?? p.google_review_url ?? "",
+        redirect_url:       c.redirect_url      ?? "",
+        redirect_platform:  c.redirect_platform ?? "",
+        rotation_enabled:   c.rotation_enabled  ?? p.rotation_enabled  ?? false,
+        nhs_review_url:     c.nhs_review_url    ?? p.nhs_review_url    ?? "",
+        healthwatch_url:    c.healthwatch_url   ?? p.healthwatch_url   ?? "",
+        fft_url:            c.fft_url           ?? p.fft_url           ?? "",
+      });
+
       // Fire-and-forget QR scan event
       surveyApi.logEvent(
         "qr_scan",
         data.room.id,
-        data.clinician.clinician_id,
+        c.clinician_id,
         data.room.practice_id
       ).catch(() => {});
     } catch (e: unknown) {
@@ -92,6 +107,8 @@ export default function RoomLandingPage({
   // ── Button destinations ────────────────────────────────────────────────────
   function handleButton1(url: string) {
     if (!room || !clinician) return;
+    // "#" means no URL configured — do nothing rather than navigate
+    if (url === "#") return;
     surveyApi.logEvent(
       "google_review_click",
       room.id,
@@ -142,44 +159,33 @@ export default function RoomLandingPage({
     );
   }
 
-  // ── Button 1: day-based channel rotation (fallback to Google) ────────────
-  const googleUrl = clinician.google_review_url?.trim() || null;
-  const today     = DEBUG_DAY_OVERRIDE ?? new Date().getDay(); // 0=Sun 1=Mon 2=Tue 3=Wed 4=Thu 5=Fri 6=Sat
+  // ── Derived display values ─────────────────────────────────────────────────
+  const firstName = clinician.clinician_name.split(" ")[0] || "";
 
-  let b1Url: string         = googleUrl ?? "#";
-  let b1Label               = googleUrl ? "Leave us a Google Review ⭐" : "Let others know! Leave us a review ⭐";
-  let b1Subtext             = `Let others know about their experience at ${clinician.practice_name}`;
+  // ── Button 1: day-based channel rotation (fallback to Google → "#") ───────
+  const googleUrl = clinician.google_review_url.trim() || null;
+  const today     = DEBUG_DAY_OVERRIDE ?? new Date().getDay(); // 0=Sun … 6=Sat
+
+  // Button 1 label is always the same static string — only the URL changes
+  const B1_LABEL = "Let others know! Leave them a review on our public page ⭐";
+
+  let b1Url: string = googleUrl ?? "#";
 
   if (clinician.rotation_enabled) {
-    const channels: Record<number, { raw?: string | null; label: string; subtext: string }> = {
-      3: {
-        raw: clinician.nhs_review_url,
-        label: "Review us on the NHS Website 🏥",
-        subtext: "Your review helps other patients find the right practice",
-      },
-      4: {
-        raw: clinician.healthwatch_url,
-        label: "Share your experience on Healthwatch 💬",
-        subtext: "Your feedback helps improve NHS services in your area",
-      },
-      5: {
-        raw: clinician.fft_url,
-        label: "Complete our Friends & Family Test 💙",
-        subtext: "Quick and anonymous — takes less than a minute",
-      },
+    const channels: Record<number, { raw: string }> = {
+      3: { raw: clinician.nhs_review_url },
+      4: { raw: clinician.healthwatch_url },
+      5: { raw: clinician.fft_url },
     };
     const match     = channels[today];
     const targetUrl = match?.raw?.trim();
     if (targetUrl) {
-      // Day-specific URL is set — use it
-      b1Url    = targetUrl;
-      b1Label  = match.label;
-      b1Subtext = match.subtext;
+      b1Url = targetUrl;
     }
-    // else: URL missing → silently fall back to Google URL + Google label (already set)
+    // else: URL missing for this day → fall back to googleUrl / "#" (already set)
   }
 
-  const hasFeedback = !!clinician.redirect_url?.trim() || !!clinician.clinician_id;
+  const hasFeedback = !!clinician.redirect_url.trim() || !!clinician.clinician_id;
 
   // ── Step 1 — Sentiment ────────────────────────────────────────────────────
   if (step === 1) {
@@ -191,8 +197,10 @@ export default function RoomLandingPage({
         >
           <div className="text-center space-y-2 pt-2">
             <h1 className="text-xl font-bold text-nhs-blue-dark leading-snug">
-              How would you describe your experience with{" "}
-              <span className="text-nhs-blue">{clinician.clinician_name}</span> today?
+              {firstName
+                ? <>How would you describe your experience with{" "}<span className="text-nhs-blue">{firstName}</span> today?</>
+                : "How would you describe your experience today?"
+              }
             </h1>
           </div>
 
@@ -231,28 +239,21 @@ export default function RoomLandingPage({
         key="step2"
         className="animate-in fade-in slide-in-from-bottom-4 duration-300 space-y-6"
       >
-        <div className="text-center space-y-1 pt-2">
-          <p className="text-xs font-semibold uppercase tracking-widest text-slate-light">
-            Thank you! 🎉
-          </p>
+        <div className="text-center pt-2">
           <h1 className="text-xl font-bold text-nhs-blue-dark leading-snug">
-            Let others know!
+            Let others know! 🎉
           </h1>
         </div>
 
         <div className="bg-white rounded-2xl shadow-card p-6 space-y-4">
+          {/* Button 1 — review destination */}
           <button
             type="button"
             onClick={() => handleButton1(b1Url)}
             className="w-full flex flex-col items-center justify-center gap-1.5 bg-nhs-blue text-white font-semibold py-5 px-6 rounded-2xl hover:bg-nhs-blue-dark active:scale-[0.98] transition-all shadow-md text-center"
           >
-            <span className="text-sm leading-snug font-bold">{b1Label}</span>
-            <span className="text-xs font-normal opacity-80">
-              for{" "}
-              <span className="font-semibold">{clinician.clinician_name}</span>
-            </span>
+            <span className="text-sm leading-snug font-bold">{B1_LABEL}</span>
           </button>
-          <p className="text-center text-xs text-slate-light -mt-1">{b1Subtext}</p>
 
           {hasFeedback && (
             <div className="flex items-center gap-3">
@@ -262,6 +263,7 @@ export default function RoomLandingPage({
             </div>
           )}
 
+          {/* Button 2 — internal feedback form */}
           {hasFeedback && (
             <button
               type="button"
@@ -270,9 +272,10 @@ export default function RoomLandingPage({
             >
               <span className="text-2xl leading-none">📋</span>
               <span className="text-sm leading-snug">
-                Complete a feedback form for{" "}
-                <span className="font-bold">{clinician.clinician_name}</span> — needed
-                for their professional development
+                {firstName
+                  ? <>Complete a feedback form for{" "}<span className="font-bold">{firstName}</span> — needed for their professional development</>
+                  : "Complete a feedback form — needed for professional development"
+                }
               </span>
             </button>
           )}
