@@ -214,14 +214,32 @@ export const dashApi = {
       body: JSON.stringify({ practice_id, google_review_url }),
     }),
 
-  /** Generic practice field update — used for channel rotation URLs and rotation_enabled */
+  /**
+   * Generic practice field update.
+   *
+   * ALLOWED fields (frontend-safe):
+   *   practice_id, subscription_tier, subscription_status, rotation_enabled,
+   *   nhs_review_url, healthwatch_url, fft_url, google_review_url,
+   *   practice_name, ods_code
+   *
+   * NEVER include subscription_started_at or trial_expires_at — these are
+   * admin-only fields managed exclusively server-side and must not be sent
+   * from any frontend action under any circumstances.
+   */
   updatePractice: (
     practice_id: string | number,
     fields: {
+      subscription_tier?: string;
+      subscription_status?: string;
+      rotation_enabled?: boolean;
       nhs_review_url?: string;
       healthwatch_url?: string;
       fft_url?: string;
-      rotation_enabled?: boolean;
+      google_review_url?: string;
+      practice_name?: string;
+      ods_code?: string;
+      // subscription_started_at  — FORBIDDEN: admin-only, never send from frontend
+      // trial_expires_at         — FORBIDDEN: admin-only, never send from frontend
     }
   ) =>
     apiFetch(`${DASH_API}/practice/update_practice`, {
