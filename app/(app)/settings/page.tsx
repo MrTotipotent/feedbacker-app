@@ -94,19 +94,20 @@ export default function SettingsPage() {
       const pid = practiceId ?? localUser?.practice_id;
       if (!pid) throw new Error("No practice ID found. Contact support.");
 
-      // Single call — exact allowed fields only.
-      // NEVER include subscription_tier, subscription_status, rotation_enabled,
-      // subscription_started_at, trial_expires_at — admin-only or saved separately.
-      const res = await dashApi.updatePractice(pid, {
+      const savePayload = {
         practice_name:     practiceName.trim(),
         ods_code:          odsCode.trim(),
         google_review_url: googleUrl.trim(),
-        // If an input is empty, fall back to the original loaded value so
-        // existing Xano data is never overwritten with an empty string.
         nhs_review_url:    nhsUrl.trim()         || origNhsUrl,
         healthwatch_url:   healthwatchUrl.trim() || origHealthwatchUrl,
         fft_url:           fftUrl.trim()         || origFftUrl,
-      });
+      };
+      console.log("[Feedbacker] Save Practice Details — payload:", JSON.parse(JSON.stringify({ practice_id: pid, ...savePayload })));
+
+      const res = await dashApi.updatePractice(pid, savePayload);
+
+      const rawResponse = await res.clone().json().catch(() => "(non-JSON or empty)");
+      console.log("[Feedbacker] Save Practice Details — response status:", res.status, "| body:", rawResponse);
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
