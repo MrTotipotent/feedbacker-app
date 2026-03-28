@@ -1207,8 +1207,8 @@ export default function CliniciansPage() {
 
       {/* ── Rooms section ─────────────────────────────────────────────────── */}
       <div>
-        <div className="flex items-center justify-between mb-3">
-          <div>
+        <div className="flex flex-col items-center gap-3 mb-4">
+          <div className="text-center">
             <h2 className="text-xl font-bold text-nhs-blue-dark">Rooms</h2>
             <p className="text-sm text-slate-light mt-0.5">Each room has its own QR code</p>
           </div>
