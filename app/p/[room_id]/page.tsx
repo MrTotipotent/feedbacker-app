@@ -59,6 +59,10 @@ export default function RoomLandingPage({
     try {
       const res  = await surveyApi.getRoom(roomIdNum);
       const data = await res.json();
+
+      // DIAGNOSTIC — log complete raw API response before any destructuring
+      console.log("[Feedbacker] get_room raw response:", JSON.parse(JSON.stringify(data)));
+
       if (!res.ok) throw new Error(data?.message ?? "Room not found.");
       if (!data?.clinician) throw new Error("No clinician assigned to this room.");
 
