@@ -146,8 +146,8 @@ export default function RoomLandingPage({
   const googleUrl = clinician.google_review_url?.trim() || null;
   const today     = DEBUG_DAY_OVERRIDE ?? new Date().getDay(); // 0=Sun 1=Mon 2=Tue 3=Wed 4=Thu 5=Fri 6=Sat
 
-  let b1Url: string | null  = googleUrl;
-  let b1Label               = "Leave us a Google Review ⭐";
+  let b1Url: string         = googleUrl ?? "#";
+  let b1Label               = googleUrl ? "Leave us a Google Review ⭐" : "Let others know! Leave us a review ⭐";
   let b1Subtext             = `Let others know about their experience at ${clinician.practice_name}`;
 
   if (clinician.rotation_enabled) {
@@ -236,35 +236,25 @@ export default function RoomLandingPage({
             Thank you! 🎉
           </p>
           <h1 className="text-xl font-bold text-nhs-blue-dark leading-snug">
-            Let others know,{" "}
-            <span className="text-nhs-blue">{clinician.clinician_name}</span>&apos;s
-            patients are talking!
+            Let others know!
           </h1>
         </div>
 
         <div className="bg-white rounded-2xl shadow-card p-6 space-y-4">
-          {b1Url ? (
-            <>
-              <button
-                type="button"
-                onClick={() => handleButton1(b1Url!)}
-                className="w-full flex flex-col items-center justify-center gap-1.5 bg-nhs-blue text-white font-semibold py-5 px-6 rounded-2xl hover:bg-nhs-blue-dark active:scale-[0.98] transition-all shadow-md text-center"
-              >
-                <span className="text-sm leading-snug font-bold">{b1Label}</span>
-                <span className="text-xs font-normal opacity-80">
-                  for{" "}
-                  <span className="font-semibold">{clinician.clinician_name}</span>
-                </span>
-              </button>
-              <p className="text-center text-xs text-slate-light -mt-1">{b1Subtext}</p>
-            </>
-          ) : (
-            <p className="text-center text-xs text-slate-light py-2">
-              Google Reviews not set up yet for this practice.
-            </p>
-          )}
+          <button
+            type="button"
+            onClick={() => handleButton1(b1Url)}
+            className="w-full flex flex-col items-center justify-center gap-1.5 bg-nhs-blue text-white font-semibold py-5 px-6 rounded-2xl hover:bg-nhs-blue-dark active:scale-[0.98] transition-all shadow-md text-center"
+          >
+            <span className="text-sm leading-snug font-bold">{b1Label}</span>
+            <span className="text-xs font-normal opacity-80">
+              for{" "}
+              <span className="font-semibold">{clinician.clinician_name}</span>
+            </span>
+          </button>
+          <p className="text-center text-xs text-slate-light -mt-1">{b1Subtext}</p>
 
-          {b1Url && hasFeedback && (
+          {hasFeedback && (
             <div className="flex items-center gap-3">
               <div className="flex-1 border-t border-border" />
               <span className="text-xs text-slate-light">then</span>
