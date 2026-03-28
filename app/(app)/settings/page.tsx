@@ -25,6 +25,10 @@ export default function SettingsPage() {
   const [nhsUrl,           setNhsUrl]           = useState("");
   const [healthwatchUrl,   setHealthwatchUrl]   = useState("");
   const [fftUrl,           setFftUrl]           = useState("");
+  // Originals — set once on load, used as save fallback if input is left empty
+  const [origNhsUrl,       setOrigNhsUrl]       = useState("");
+  const [origHealthwatchUrl, setOrigHealthwatchUrl] = useState("");
+  const [origFftUrl,       setOrigFftUrl]       = useState("");
   const [rotationEnabled,  setRotationEnabled]  = useState(false);
   const [rotationSaving,   setRotationSaving]   = useState(false);
   const [practiceId,       setPracticeId]       = useState<string | number | null>(null);
@@ -49,12 +53,20 @@ export default function SettingsPage() {
       setSubStatus(data?.subscription_status ?? data?.practice?.subscription_status ?? "basic");
       setTrialExpiry(data?.trial_expires_at  ?? data?.practice?.trial_expires_at    ?? null);
 
-      // Channel rotation fields
-      setNhsUrl(        data?.nhs_review_url  ?? data?.practice?.nhs_review_url  ?? "");
-      setHealthwatchUrl(data?.healthwatch_url ?? data?.practice?.healthwatch_url ?? "");
-      setFftUrl(        data?.fft_url         ?? data?.practice?.fft_url         ?? "");
+      // Channel rotation fields — check practice.* first (consistent with google_review_url),
+      // use || so empty strings also fall through to the next path.
+      const nhsVal = data?.practice?.nhs_review_url  || data?.nhs_review_url  || "";
+      const hwVal  = data?.practice?.healthwatch_url || data?.healthwatch_url || "";
+      const fftVal = data?.practice?.fft_url         || data?.fft_url         || "";
+      setNhsUrl(nhsVal);
+      setHealthwatchUrl(hwVal);
+      setFftUrl(fftVal);
+      // Store originals so the save handler can fall back to them if inputs are left empty
+      setOrigNhsUrl(nhsVal);
+      setOrigHealthwatchUrl(hwVal);
+      setOrigFftUrl(fftVal);
       setRotationEnabled(
-        data?.rotation_enabled ?? data?.practice?.rotation_enabled ?? false
+        !!(data?.practice?.rotation_enabled ?? data?.rotation_enabled ?? false)
       );
 
       // Persist practice_id for save calls
@@ -89,9 +101,11 @@ export default function SettingsPage() {
         practice_name:     practiceName.trim(),
         ods_code:          odsCode.trim(),
         google_review_url: googleUrl.trim(),
-        nhs_review_url:    nhsUrl.trim(),
-        healthwatch_url:   healthwatchUrl.trim(),
-        fft_url:           fftUrl.trim(),
+        // If an input is empty, fall back to the original loaded value so
+        // existing Xano data is never overwritten with an empty string.
+        nhs_review_url:    nhsUrl.trim()         || origNhsUrl,
+        healthwatch_url:   healthwatchUrl.trim() || origHealthwatchUrl,
+        fft_url:           fftUrl.trim()         || origFftUrl,
       });
 
       if (!res.ok) {
