@@ -103,12 +103,7 @@ export default function SettingsPage() {
         fft_url:           fftUrl.trim()         || origFftUrl,
         rotation_enabled:  rotationEnabled,
       };
-      console.log("[Feedbacker] Save Practice Details — payload:", JSON.parse(JSON.stringify({ practice_id: pid, ...savePayload })));
-
       const res = await dashApi.updatePractice(pid, savePayload);
-
-      const rawResponse = await res.clone().json().catch(() => "(non-JSON or empty)");
-      console.log("[Feedbacker] Save Practice Details — response status:", res.status, "| body:", rawResponse);
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));

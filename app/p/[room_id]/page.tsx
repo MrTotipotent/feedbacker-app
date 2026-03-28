@@ -56,9 +56,6 @@ export default function RoomLandingPage({
       const res  = await surveyApi.getRoom(roomIdNum);
       const data = await res.json();
 
-      // DIAGNOSTIC — log complete raw API response before any destructuring
-      console.log("[Feedbacker] get_room raw response:", JSON.parse(JSON.stringify(data)));
-
       if (!res.ok) throw new Error(data?.message ?? "Room not found.");
       if (!data?.clinician) throw new Error("No clinician assigned to this room.");
 
@@ -176,15 +173,6 @@ export default function RoomLandingPage({
   }
 
   const hasFeedback = !!clinician.redirect_url.trim() || !!clinician.clinician_id;
-
-  // Issue 3 — log resolved href for verification
-  console.log(
-    "[Feedbacker] Button 1 href:", b1Url,
-    "| rotation_enabled:", clinician.rotation_enabled,
-    "| today (day index):", today,
-    "| nhs_review_url:", clinician.nhs_review_url,
-    "| google_review_url:", clinician.google_review_url,
-  );
 
   // ── Step 1 — Sentiment ────────────────────────────────────────────────────
   if (step === 1) {
