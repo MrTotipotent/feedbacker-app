@@ -17,46 +17,77 @@ export default function SettingsPage() {
   const [practiceErr, setPracticeErr]   = useState("");
 
   // ── Subscription ─────────────────────────────────────────────────────────
-  const [subTier,       setSubTier]      = useState("basic");
-  const [subStatus,     setSubStatus]    = useState("basic");
+  const [subTier,        setSubTier]     = useState("basic");
+  const [subStatus,      setSubStatus]   = useState("basic");
   const [trialExpiresAt, setTrialExpiry] = useState<string | null>(null);
+
+  // ── Channel Rotation ─────────────────────────────────────────────────────
+  const [nhsUrl,           setNhsUrl]           = useState("");
+  const [healthwatchUrl,   setHealthwatchUrl]   = useState("");
+  const [fftUrl,           setFftUrl]           = useState("");
+  const [rotationEnabled,  setRotationEnabled]  = useState(false);
+  const [rotationSaving,   setRotationSaving]   = useState(false);
+  const [practiceId,       setPracticeId]       = useState<string | number | null>(null);
 
   // Load practice details from API on mount
   useEffect(() => {
     dashApi.getPractice().then(async (res) => {
       if (!res.ok) return;
       const data = await res.json();
+
       const url = data?.practice?.google_review_url ?? data?.google_review_url ?? "";
       if (url) setGoogleUrl(url);
+
       const name = data?.practice_name ?? data?.practice?.name ?? data?.name ?? "";
       if (name) setPracticeName(name);
+
       const ods = data?.practice?.ods_code ?? data?.ods_code ?? "";
       if (ods) setOdsCode(ods);
-      // Subscription fields (returned after Xano schema update)
-      const tier   = data?.subscription_tier   ?? data?.practice?.subscription_tier   ?? "basic";
-      const status = data?.subscription_status ?? data?.practice?.subscription_status ?? "basic";
-      const expiry = data?.trial_expires_at    ?? data?.practice?.trial_expires_at    ?? null;
-      setSubTier(tier);
-      setSubStatus(status);
-      setTrialExpiry(expiry);
+
+      // Subscription fields
+      setSubTier(  data?.subscription_tier   ?? data?.practice?.subscription_tier   ?? "basic");
+      setSubStatus(data?.subscription_status ?? data?.practice?.subscription_status ?? "basic");
+      setTrialExpiry(data?.trial_expires_at  ?? data?.practice?.trial_expires_at    ?? null);
+
+      // Channel rotation fields
+      setNhsUrl(        data?.nhs_review_url  ?? data?.practice?.nhs_review_url  ?? "");
+      setHealthwatchUrl(data?.healthwatch_url ?? data?.practice?.healthwatch_url ?? "");
+      setFftUrl(        data?.fft_url         ?? data?.practice?.fft_url         ?? "");
+      setRotationEnabled(
+        data?.rotation_enabled ?? data?.practice?.rotation_enabled ?? false
+      );
+
+      // Persist practice_id for save calls
+      const pid = data?.practice_id ?? data?.practice?.id ?? data?.id ?? localUser?.practice_id;
+      if (pid) setPracticeId(pid);
     }).catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Save Practice Details + Channel URLs ─────────────────────────────────
   async function handlePracticeSave(e: React.FormEvent) {
     e.preventDefault();
     setSavingPractice(true);
     setPracticeMsg("");
     setPracticeErr("");
     try {
-      const pid = localUser?.practice_id;
+      const pid = practiceId ?? localUser?.practice_id;
       if (!pid) throw new Error("No practice ID found. Contact support.");
 
-      // Save Google Review URL
-      const res = await dashApi.updateGoogleReviewUrl(pid, googleUrl.trim());
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error((body as { message?: string })?.message ?? `Failed (${res.status})`);
+      const [res1, res2] = await Promise.all([
+        dashApi.updateGoogleReviewUrl(pid, googleUrl.trim()),
+        dashApi.updatePractice(pid, {
+          nhs_review_url:   nhsUrl.trim(),
+          healthwatch_url:  healthwatchUrl.trim(),
+          fft_url:          fftUrl.trim(),
+        }),
+      ]);
+
+      const failed = [res1, res2].find((r) => !r.ok);
+      if (failed) {
+        const body = await failed.json().catch(() => ({}));
+        throw new Error((body as { message?: string })?.message ?? `Failed (${failed.status})`);
       }
+
       setPracticeMsg("Saved successfully!");
       setTimeout(() => setPracticeMsg(""), 3000);
     } catch (err: unknown) {
@@ -67,9 +98,26 @@ export default function SettingsPage() {
     }
   }
 
+  // ── Rotation toggle — saves immediately on change ─────────────────────────
+  async function handleRotationToggle() {
+    const pid = practiceId ?? localUser?.practice_id;
+    if (!pid || rotationSaving) return;
+    const next = !rotationEnabled;
+    setRotationEnabled(next);
+    setRotationSaving(true);
+    try {
+      const res = await dashApi.updatePractice(pid, { rotation_enabled: next });
+      if (!res.ok) setRotationEnabled(!next); // revert on error
+    } catch {
+      setRotationEnabled(!next);
+    } finally {
+      setRotationSaving(false);
+    }
+  }
+
   // ── CQC Target ──────────────────────────────────────────────────────────
-  const [cqcTarget, setCqcTarget]   = useState<number>(4.0);
-  const [cqcMsg, setCqcMsg]         = useState("");
+  const [cqcTarget, setCqcTarget] = useState<number>(4.0);
+  const [cqcMsg, setCqcMsg]       = useState("");
 
   useEffect(() => {
     const stored = localStorage.getItem("cqc_target");
@@ -86,7 +134,7 @@ export default function SettingsPage() {
     setTimeout(() => setCqcMsg(""), 3000);
   }
 
-  // ── Subscription derivations ─────────────────────────────────────────────
+  // ── Subscription derivations ──────────────────────────────────────────────
   const isPremium  = subTier === "premium" && subStatus === "active";
   const isTrialing = subStatus === "trial" && trialExpiresAt !== null && new Date(trialExpiresAt) > new Date();
   const hasAccess  = isPremium || isTrialing;
@@ -94,11 +142,11 @@ export default function SettingsPage() {
     ? Math.max(0, Math.ceil((new Date(trialExpiresAt).getTime() - Date.now()) / 86_400_000))
     : null;
 
-  // ── Shared card style ───────────────────────────────────────────────────
-  const card = "bg-white rounded-[10px] border border-border p-6";
+  // ── Shared styles ──────────────────────────────────────────────────────────
+  const card       = "bg-white rounded-[10px] border border-border p-6";
   const cardShadow = { boxShadow: "0 2px 12px rgba(0,94,184,0.08)" };
-  const inputCls = "w-full rounded-lg border border-border bg-off-white px-3.5 py-2.5 text-sm text-slate placeholder-slate-light/60 focus:outline-none focus:ring-2 focus:ring-nhs-blue transition";
-  const labelCls = "block text-xs font-bold text-slate uppercase tracking-wider mb-1.5";
+  const inputCls   = "w-full rounded-lg border border-border bg-off-white px-3.5 py-2.5 text-sm text-slate placeholder-slate-light/60 focus:outline-none focus:ring-2 focus:ring-nhs-blue transition";
+  const labelCls   = "block text-xs font-bold text-slate uppercase tracking-wider mb-1.5";
   const btnPrimary = "w-full bg-nhs-blue text-white font-semibold py-3 rounded-xl hover:bg-nhs-blue-dark active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed transition-all shadow-md";
 
   return (
@@ -142,7 +190,7 @@ export default function SettingsPage() {
               <p className="text-xs text-slate-500">Upgrade to Premium to unlock advanced features.</p>
             </div>
             <a
-              href="mailto:hello@feedbacker.co.uk?subject=Upgrade%20to%20Premium"
+              href="/settings#subscription"
               className="text-xs font-semibold text-nhs-blue hover:underline whitespace-nowrap"
             >
               Upgrade
@@ -184,21 +232,20 @@ export default function SettingsPage() {
             />
           </div>
 
-          <PremiumGate hasAccess={hasAccess}>
-            <div>
-              <label className={labelCls}>Google Review URL</label>
-              <input
-                type="url"
-                value={googleUrl}
-                onChange={(e) => setGoogleUrl(e.target.value)}
-                placeholder="https://g.page/r/your-practice-review-link"
-                className={inputCls}
-              />
-              <p className="text-xs text-slate-light mt-1">
-                Patients will be directed here after completing their feedback.
-              </p>
-            </div>
-          </PremiumGate>
+          {/* Google Review URL — standard feature, no gate */}
+          <div>
+            <label className={labelCls}>Google Review URL</label>
+            <input
+              type="url"
+              value={googleUrl}
+              onChange={(e) => setGoogleUrl(e.target.value)}
+              placeholder="https://g.page/r/your-practice-review-link"
+              className={inputCls}
+            />
+            <p className="text-xs text-slate-light mt-1">
+              Patients will be directed here after completing their feedback.
+            </p>
+          </div>
 
           {practiceMsg && (
             <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-sm text-nhs-green font-medium">
@@ -268,33 +315,137 @@ export default function SettingsPage() {
         </form>
       </div>
 
-      {/* ── Smart Rotation (Premium) ──────────────────────────────────── */}
+      {/* ── Feedback Channel Rotation (Premium) ──────────────────────── */}
       <div className={card} style={cardShadow}>
-        <h2 className="text-base font-semibold text-nhs-blue-dark mb-1">Smart Rotation</h2>
+        <h2 className="text-base font-semibold text-nhs-blue-dark mb-1">
+          Feedback Channel Rotation
+        </h2>
         <p className="text-sm text-slate-light mb-5">
-          Automatically rotate clinicians based on a scheduled calendar — no manual updates needed.
+          Automatically rotate where positive patient sentiment is directed — maximising
+          your presence across all NHS feedback channels.
         </p>
+
         <PremiumGate hasAccess={hasAccess}>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
+          <div className="space-y-6">
+
+            {/* Smart Rotation toggle */}
+            <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-sm font-semibold text-slate">Enable Smart Rotation</p>
                 <p className="text-xs text-slate-light mt-0.5">
-                  Clinicians rotate automatically based on their assigned dates.
+                  Button 1 on the patient journey page will rotate through your NHS
+                  feedback channels by day of the week.
                 </p>
               </div>
-              {/* Toggle — visual placeholder; functionality wired in future sprint */}
               <button
                 type="button"
-                aria-label="Toggle Smart Rotation"
-                className="w-11 h-6 rounded-full bg-slate-200 relative transition-colors focus:outline-none focus:ring-2 focus:ring-nhs-blue"
+                role="switch"
+                aria-checked={rotationEnabled}
+                aria-label="Enable Smart Rotation"
+                disabled={rotationSaving}
+                onClick={handleRotationToggle}
+                className="flex-shrink-0 w-11 h-6 rounded-full relative transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-nhs-blue focus:ring-offset-2 disabled:opacity-50"
+                style={{ background: rotationEnabled ? "#005EB8" : "#D1D5DB" }}
               >
-                <span className="absolute left-1 top-1 w-4 h-4 rounded-full bg-white shadow transition-transform" />
+                <span
+                  className="absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200"
+                  style={{ left: rotationEnabled ? "calc(100% - 20px)" : "4px" }}
+                />
               </button>
             </div>
-            <p className="text-xs text-slate-light border-t border-border pt-3">
-              Rotation schedule is managed in the <a href="/practice" className="text-nhs-blue hover:underline">Practice</a> tab.
+
+            {/* Channel rows */}
+            <div className="border border-border rounded-xl overflow-hidden divide-y divide-border">
+
+              {/* Row header */}
+              <div className="grid grid-cols-[80px_1fr_12px] gap-3 items-center px-4 py-2 bg-off-white">
+                <span className="text-[10px] font-bold text-slate-light uppercase tracking-wider">Day</span>
+                <span className="text-[10px] font-bold text-slate-light uppercase tracking-wider">Channel</span>
+                <span />
+              </div>
+
+              {/* Row 1 — Google Reviews (Mon/Tue) */}
+              <div className="grid grid-cols-[80px_1fr_12px] gap-3 items-center px-4 py-3">
+                <span className="text-xs font-semibold text-slate">Mon / Tue</span>
+                <div>
+                  <p className="text-sm font-medium text-slate">Google Reviews</p>
+                  <p className="text-xs text-slate-light mt-0.5">Uses your existing Google Review URL above</p>
+                </div>
+                <span className="w-2.5 h-2.5 rounded-full bg-nhs-green flex-shrink-0" title="Configured" />
+              </div>
+
+              {/* Row 2 — NHS Website (Wed) */}
+              <div className="px-4 py-3 space-y-2">
+                <div className="grid grid-cols-[80px_1fr_12px] gap-3 items-center">
+                  <span className="text-xs font-semibold text-slate">Wed</span>
+                  <p className="text-sm font-medium text-slate">NHS Website</p>
+                  <span
+                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                    style={{ background: nhsUrl.trim() ? "#009639" : "#F59E0B" }}
+                    title={nhsUrl.trim() ? "Configured" : "Required for full rotation"}
+                  />
+                </div>
+                <input
+                  type="url"
+                  value={nhsUrl}
+                  onChange={(e) => setNhsUrl(e.target.value)}
+                  placeholder="https://www.nhs.uk/services/gp-surgery/..."
+                  className={inputCls}
+                />
+              </div>
+
+              {/* Row 3 — Healthwatch (Thu) */}
+              <div className="px-4 py-3 space-y-2">
+                <div className="grid grid-cols-[80px_1fr_12px] gap-3 items-center">
+                  <span className="text-xs font-semibold text-slate">Thu</span>
+                  <p className="text-sm font-medium text-slate">Healthwatch</p>
+                  <span
+                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                    style={{ background: healthwatchUrl.trim() ? "#009639" : "#F59E0B" }}
+                    title={healthwatchUrl.trim() ? "Configured" : "Required for full rotation"}
+                  />
+                </div>
+                <input
+                  type="url"
+                  value={healthwatchUrl}
+                  onChange={(e) => setHealthwatchUrl(e.target.value)}
+                  placeholder="https://www.healthwatch.co.uk/..."
+                  className={inputCls}
+                />
+              </div>
+
+              {/* Row 4 — Friends & Family Test (Fri) */}
+              <div className="px-4 py-3 space-y-2">
+                <div className="grid grid-cols-[80px_1fr_12px] gap-3 items-center">
+                  <span className="text-xs font-semibold text-slate">Fri</span>
+                  <div>
+                    <p className="text-sm font-medium text-slate">
+                      Friends &amp; Family Test
+                      <span className="ml-2 text-[10px] font-normal text-slate-light">Optional</span>
+                    </p>
+                  </div>
+                  <span
+                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                    style={{ background: fftUrl.trim() ? "#009639" : "#9CA3AF" }}
+                    title={fftUrl.trim() ? "Configured" : "Optional"}
+                  />
+                </div>
+                <input
+                  type="url"
+                  value={fftUrl}
+                  onChange={(e) => setFftUrl(e.target.value)}
+                  placeholder="https://www.england.nhs.uk/fft/..."
+                  className={inputCls}
+                />
+              </div>
+
+            </div>
+
+            <p className="text-xs text-slate-light">
+              Channel URLs are saved with the <strong>Save Practice Details</strong> button above.
+              The rotation toggle saves immediately when changed.
             </p>
+
           </div>
         </PremiumGate>
       </div>

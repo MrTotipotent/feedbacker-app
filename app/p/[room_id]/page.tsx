@@ -19,6 +19,11 @@ interface RoomClinician {
   google_review_url?: string;
   redirect_url?: string;
   redirect_platform?: string;
+  // Channel rotation fields (returned by get_room after Xano schema update)
+  rotation_enabled?: boolean;
+  nhs_review_url?: string;
+  healthwatch_url?: string;
+  fft_url?: string;
 }
 
 type Step = 1 | 2;
@@ -79,15 +84,15 @@ export default function RoomLandingPage({
   }
 
   // ── Button destinations ────────────────────────────────────────────────────
-  function handleGoogle() {
-    if (!clinician?.google_review_url || !room) return;
+  function handleButton1(url: string) {
+    if (!room || !clinician) return;
     surveyApi.logEvent(
       "google_review_click",
       room.id,
       clinician.clinician_id,
       room.practice_id
     ).catch(() => {});
-    window.open(clinician.google_review_url, "_blank", "noopener,noreferrer");
+    window.open(url, "_blank", "noopener,noreferrer");
   }
 
   function handleFeedbackForm() {
@@ -127,7 +132,43 @@ export default function RoomLandingPage({
     );
   }
 
-  const hasGoogle   = !!clinician.google_review_url?.trim();
+  // ── Button 1: day-based channel rotation (fallback to Google) ────────────
+  const googleUrl = clinician.google_review_url?.trim() || null;
+  const today     = new Date().getDay(); // 0=Sun 1=Mon 2=Tue 3=Wed 4=Thu 5=Fri 6=Sat
+
+  let b1Url: string | null  = googleUrl;
+  let b1Label               = "Leave us a Google Review ⭐";
+  let b1Subtext             = `Let others know about their experience at ${clinician.practice_name}`;
+
+  if (clinician.rotation_enabled) {
+    const channels: Record<number, { raw?: string | null; label: string; subtext: string }> = {
+      3: {
+        raw: clinician.nhs_review_url,
+        label: "Review us on the NHS Website 🏥",
+        subtext: "Your review helps other patients find the right practice",
+      },
+      4: {
+        raw: clinician.healthwatch_url,
+        label: "Share your experience on Healthwatch 💬",
+        subtext: "Your feedback helps improve NHS services in your area",
+      },
+      5: {
+        raw: clinician.fft_url,
+        label: "Complete our Friends & Family Test 💙",
+        subtext: "Quick and anonymous — takes less than a minute",
+      },
+    };
+    const match     = channels[today];
+    const targetUrl = match?.raw?.trim();
+    if (targetUrl) {
+      // Day-specific URL is set — use it
+      b1Url    = targetUrl;
+      b1Label  = match.label;
+      b1Subtext = match.subtext;
+    }
+    // else: URL missing → silently fall back to Google URL + Google label (already set)
+  }
+
   const hasFeedback = !!clinician.redirect_url?.trim() || !!clinician.clinician_id;
 
   // ── Step 1 — Sentiment ────────────────────────────────────────────────────
@@ -192,26 +233,28 @@ export default function RoomLandingPage({
         </div>
 
         <div className="bg-white rounded-2xl shadow-card p-6 space-y-4">
-          {hasGoogle ? (
-            <button
-              type="button"
-              onClick={handleGoogle}
-              className="w-full flex flex-col items-center justify-center gap-1.5 bg-nhs-blue text-white font-semibold py-5 px-6 rounded-2xl hover:bg-nhs-blue-dark active:scale-[0.98] transition-all shadow-md text-center"
-            >
-              <span className="text-2xl leading-none">⭐</span>
-              <span className="text-sm leading-snug">
-                Let others know! Leave{" "}
-                <span className="font-bold">{clinician.clinician_name}</span> a public
-                Google review
-              </span>
-            </button>
+          {b1Url ? (
+            <>
+              <button
+                type="button"
+                onClick={() => handleButton1(b1Url!)}
+                className="w-full flex flex-col items-center justify-center gap-1.5 bg-nhs-blue text-white font-semibold py-5 px-6 rounded-2xl hover:bg-nhs-blue-dark active:scale-[0.98] transition-all shadow-md text-center"
+              >
+                <span className="text-sm leading-snug font-bold">{b1Label}</span>
+                <span className="text-xs font-normal opacity-80">
+                  for{" "}
+                  <span className="font-semibold">{clinician.clinician_name}</span>
+                </span>
+              </button>
+              <p className="text-center text-xs text-slate-light -mt-1">{b1Subtext}</p>
+            </>
           ) : (
             <p className="text-center text-xs text-slate-light py-2">
               Google Reviews not set up yet for this practice.
             </p>
           )}
 
-          {hasGoogle && hasFeedback && (
+          {b1Url && hasFeedback && (
             <div className="flex items-center gap-3">
               <div className="flex-1 border-t border-border" />
               <span className="text-xs text-slate-light">then</span>

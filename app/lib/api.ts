@@ -214,6 +214,21 @@ export const dashApi = {
       body: JSON.stringify({ practice_id, google_review_url }),
     }),
 
+  /** Generic practice field update — used for channel rotation URLs and rotation_enabled */
+  updatePractice: (
+    practice_id: string | number,
+    fields: {
+      nhs_review_url?: string;
+      healthwatch_url?: string;
+      fft_url?: string;
+      rotation_enabled?: boolean;
+    }
+  ) =>
+    apiFetch(`${DASH_API}/practice/update_practice`, {
+      method: "PATCH",
+      body: JSON.stringify({ practice_id, ...fields }),
+    }),
+
   // ── Rooms ────────────────────────────────────────────────────────────────
 
   createRoom: (room_name: string, practice_id: number) =>

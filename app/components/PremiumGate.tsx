@@ -1,7 +1,5 @@
 "use client";
 
-import Link from "next/link";
-
 interface PremiumGateProps {
   hasAccess: boolean;
   children: React.ReactNode;
@@ -10,21 +8,25 @@ interface PremiumGateProps {
 /**
  * Wraps any premium-only UI section.
  * - If hasAccess is true (premium or trialing): renders children normally.
- * - If hasAccess is false: renders a subtle locked overlay with upgrade prompt.
+ * - If hasAccess is false: renders a locked overlay with upgrade prompt.
  */
 export default function PremiumGate({ hasAccess, children }: PremiumGateProps) {
   if (hasAccess) return <>{children}</>;
 
   return (
-    <div className="relative rounded-xl overflow-hidden">
+    <div className="relative rounded-xl">
       {/* Dimmed, non-interactive preview of the feature */}
       <div aria-hidden className="pointer-events-none select-none opacity-25 blur-sm">
         {children}
       </div>
 
-      {/* Lock overlay */}
-      <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-white/80">
-        <div className="flex flex-col items-center gap-2.5 text-center p-6">
+      {/* Lock overlay — z-10 so it sits above the blurred preview */}
+      <div
+        className="absolute inset-0 flex items-center justify-center rounded-xl bg-white/85"
+        style={{ zIndex: 10 }}
+      >
+        <div className="flex flex-col items-center gap-3 text-center p-6">
+          {/* Lock icon */}
           <div className="w-11 h-11 rounded-full bg-slate-100 flex items-center justify-center">
             <svg
               className="w-5 h-5 text-slate-400"
@@ -38,15 +40,19 @@ export default function PremiumGate({ hasAccess, children }: PremiumGateProps) {
               />
             </svg>
           </div>
+
           <p className="text-sm font-semibold text-slate-600">
             This is a Premium feature
           </p>
-          <Link
+
+          {/* Styled NHS blue button — pointer-events explicitly auto to ensure clickability */}
+          <a
             href="/settings#subscription"
-            className="text-xs font-medium text-nhs-blue hover:underline"
+            style={{ pointerEvents: "auto" }}
+            className="inline-block bg-nhs-blue text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-nhs-blue-dark transition-colors"
           >
             Upgrade to unlock
-          </Link>
+          </a>
         </div>
       </div>
     </div>
