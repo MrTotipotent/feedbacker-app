@@ -32,7 +32,7 @@ type Step = 1 | 2;
 // Set to null to use the real current day, or a number to force a specific day:
 //   0=Sun  1=Mon  2=Tue  3=Wed  4=Thu  5=Fri  6=Sat
 // DEBUG ONLY — remove before production
-const DEBUG_DAY_OVERRIDE: number | null = null;
+const DEBUG_DAY_OVERRIDE: number | null = 3; // TODO: remove before production (Wed=3)
 
 export default function RoomLandingPage({
   params,
@@ -105,18 +105,8 @@ export default function RoomLandingPage({
   }
 
   // ── Button destinations ────────────────────────────────────────────────────
-  function handleButton1(url: string) {
-    if (!room || !clinician) return;
-    // "#" means no URL configured — do nothing rather than navigate
-    if (url === "#") return;
-    surveyApi.logEvent(
-      "google_review_click",
-      room.id,
-      clinician.clinician_id,
-      room.practice_id
-    ).catch(() => {});
-    window.open(url, "_blank", "noopener,noreferrer");
-  }
+  // Button 1 is a plain <a> tag — no onClick, no API call, no event tracking.
+  // Navigation is handled entirely by the href attribute.
 
   function handleFeedbackForm() {
     if (!clinician || !room) return;
@@ -187,6 +177,15 @@ export default function RoomLandingPage({
 
   const hasFeedback = !!clinician.redirect_url.trim() || !!clinician.clinician_id;
 
+  // Issue 3 — log resolved href for verification
+  console.log(
+    "[Feedbacker] Button 1 href:", b1Url,
+    "| rotation_enabled:", clinician.rotation_enabled,
+    "| today (day index):", today,
+    "| nhs_review_url:", clinician.nhs_review_url,
+    "| google_review_url:", clinician.google_review_url,
+  );
+
   // ── Step 1 — Sentiment ────────────────────────────────────────────────────
   if (step === 1) {
     return (
@@ -246,14 +245,15 @@ export default function RoomLandingPage({
         </div>
 
         <div className="bg-white rounded-2xl shadow-card p-6 space-y-4">
-          {/* Button 1 — review destination */}
-          <button
-            type="button"
-            onClick={() => handleButton1(b1Url)}
-            className="w-full flex flex-col items-center justify-center gap-1.5 bg-nhs-blue text-white font-semibold py-5 px-6 rounded-2xl hover:bg-nhs-blue-dark active:scale-[0.98] transition-all shadow-md text-center"
+          {/* Button 1 — review destination: plain anchor, no onClick, no API call */}
+          <a
+            href={b1Url}
+            target={b1Url === "#" ? "_self" : "_blank"}
+            rel="noopener noreferrer"
+            className="w-full flex flex-col items-center justify-center gap-1.5 bg-nhs-blue text-white font-semibold py-5 px-6 rounded-2xl hover:bg-nhs-blue-dark active:scale-[0.98] transition-all shadow-md text-center no-underline"
           >
             <span className="text-sm leading-snug font-bold">{B1_LABEL}</span>
-          </button>
+          </a>
 
           {hasFeedback && (
             <div className="flex items-center gap-3">

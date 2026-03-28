@@ -73,19 +73,21 @@ export default function SettingsPage() {
       const pid = practiceId ?? localUser?.practice_id;
       if (!pid) throw new Error("No practice ID found. Contact support.");
 
-      const [res1, res2] = await Promise.all([
-        dashApi.updateGoogleReviewUrl(pid, googleUrl.trim()),
-        dashApi.updatePractice(pid, {
-          nhs_review_url:   nhsUrl.trim(),
-          healthwatch_url:  healthwatchUrl.trim(),
-          fft_url:          fftUrl.trim(),
-        }),
-      ]);
+      // Single call — exact allowed fields only.
+      // NEVER include subscription_tier, subscription_status, rotation_enabled,
+      // subscription_started_at, trial_expires_at — those are admin-only or saved separately.
+      const res = await dashApi.updatePractice(pid, {
+        practice_name:     practiceName.trim(),
+        ods_code:          odsCode.trim(),
+        google_review_url: googleUrl.trim(),
+        nhs_review_url:    nhsUrl.trim(),
+        healthwatch_url:   healthwatchUrl.trim(),
+        fft_url:           fftUrl.trim(),
+      });
 
-      const failed = [res1, res2].find((r) => !r.ok);
-      if (failed) {
-        const body = await failed.json().catch(() => ({}));
-        throw new Error((body as { message?: string })?.message ?? `Failed (${failed.status})`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { message?: string })?.message ?? `Failed (${res.status})`);
       }
 
       setPracticeMsg("Saved successfully!");
