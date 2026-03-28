@@ -101,6 +101,7 @@ export default function SettingsPage() {
         nhs_review_url:    nhsUrl.trim()         || origNhsUrl,
         healthwatch_url:   healthwatchUrl.trim() || origHealthwatchUrl,
         fft_url:           fftUrl.trim()         || origFftUrl,
+        rotation_enabled:  rotationEnabled,
       };
       console.log("[Feedbacker] Save Practice Details — payload:", JSON.parse(JSON.stringify({ practice_id: pid, ...savePayload })));
 
