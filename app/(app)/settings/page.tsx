@@ -69,13 +69,22 @@ export default function SettingsPage() {
     setSavingPractice(true);
     setPracticeMsg("");
     setPracticeErr("");
+
+    // Snapshot subscription state BEFORE the async call.
+    // These values must survive the save regardless of what the API returns —
+    // they are set once on mount from getPractice() and must never be
+    // overwritten by an update_practice response.
+    const lockedTier    = subTier;
+    const lockedStatus  = subStatus;
+    const lockedExpiry  = trialExpiresAt;
+
     try {
       const pid = practiceId ?? localUser?.practice_id;
       if (!pid) throw new Error("No practice ID found. Contact support.");
 
       // Single call — exact allowed fields only.
       // NEVER include subscription_tier, subscription_status, rotation_enabled,
-      // subscription_started_at, trial_expires_at — those are admin-only or saved separately.
+      // subscription_started_at, trial_expires_at — admin-only or saved separately.
       const res = await dashApi.updatePractice(pid, {
         practice_name:     practiceName.trim(),
         ods_code:          odsCode.trim(),
@@ -90,9 +99,20 @@ export default function SettingsPage() {
         throw new Error((body as { message?: string })?.message ?? `Failed (${res.status})`);
       }
 
+      // Explicitly restore subscription state to the snapshotted values.
+      // This guards against any remount, Suspense reset, or response-driven
+      // state wipe that could revert subTier/subStatus to the "basic" default.
+      setSubTier(lockedTier);
+      setSubStatus(lockedStatus);
+      setTrialExpiry(lockedExpiry);
+
       setPracticeMsg("Saved successfully!");
       setTimeout(() => setPracticeMsg(""), 3000);
     } catch (err: unknown) {
+      // On error, also restore subscription state
+      setSubTier(lockedTier);
+      setSubStatus(lockedStatus);
+      setTrialExpiry(lockedExpiry);
       setPracticeErr(err instanceof Error ? err.message : "Something went wrong");
       setTimeout(() => setPracticeErr(""), 4000);
     } finally {

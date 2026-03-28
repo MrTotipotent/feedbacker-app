@@ -98,9 +98,9 @@ export default function RoomLandingPage({
 
   // ── Continue from Step 1 → Step 2 ─────────────────────────────────────────
   function handleContinue() {
-    if (clinician?.clinician_id && sentiment.trim()) {
-      surveyApi.createQuickFeedback(clinician.clinician_id, sentiment.trim()).catch(() => {});
-    }
+    // NOTE: createQuickFeedback intentionally removed — the POST was returning
+    // 404 and appearing in the browser console while the user was on Step 2,
+    // making it appear as if Button 1 was triggering an API call.
     setStep(2);
   }
 
