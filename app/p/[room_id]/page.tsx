@@ -62,7 +62,7 @@ export default function RoomLandingPage({
       const res  = await surveyApi.getRoom(roomIdNum);
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message ?? "Room not found.");
-      if (!data?.clinician?.clinician_name) throw new Error("No active clinician set for this room.");
+      if (!data?.clinician) throw new Error("No clinician assigned to this room.");
       setRoom(data.room);
       setClinician(data.clinician);
       // Fire-and-forget QR scan event
