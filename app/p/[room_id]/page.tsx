@@ -32,7 +32,7 @@ type Step = 1 | 2;
 // Set to null to use the real current day, or a number to force a specific day:
 //   0=Sun  1=Mon  2=Tue  3=Wed  4=Thu  5=Fri  6=Sat
 // DEBUG ONLY — remove before production
-const DEBUG_DAY_OVERRIDE: number | null = 4; // TODO: remove before production (Thu=4)
+const DEBUG_DAY_OVERRIDE: number | null = 5; // TODO: remove before production (Fri=5)
 
 export default function RoomLandingPage({
   params,
