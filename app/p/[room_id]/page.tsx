@@ -28,7 +28,7 @@ type Step = 1 | 2;
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-const DEBUG_DAY_OVERRIDE: number | null = 4; // Thursday — healthwatch_url test
+const DEBUG_DAY_OVERRIDE: number | null = 5; // Friday — fft_url test
 
 export default function RoomLandingPage({
   params,
