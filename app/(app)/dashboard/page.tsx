@@ -97,8 +97,15 @@ function normaliseEventCounts(raw: unknown): EventCounts {
       feedback_clicks: rows.filter((e) => e.event_type === "feedback_click").length,
     };
   }
-  // Already a flat aggregate — return as-is
-  return raw as EventCounts;
+  // Flat aggregate from Xano.
+  // Xano returns qr_scan / google_review_click / feedback_click (singular, no _clicks suffix).
+  // Accept both spellings so this works regardless of backend naming conventions.
+  const obj = raw as Record<string, unknown>;
+  return {
+    qr_scans:        Number(obj.qr_scans        ?? obj.qr_scan             ?? 0),
+    google_clicks:   Number(obj.google_clicks   ?? obj.google_review_click ?? 0),
+    feedback_clicks: Number(obj.feedback_clicks ?? obj.feedback_click      ?? 0),
+  };
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -382,9 +389,9 @@ export default function DashboardPage() {
             const now  = new Date();
             const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
             Promise.all([
-              dashApi.getEventCounts(pid),
-              dashApi.getEventCounts(pid, now.getMonth() + 1, now.getFullYear()),
-              dashApi.getEventCounts(pid, prev.getMonth() + 1, prev.getFullYear()),
+              dashApi.getEventCounts(pid, undefined),
+              dashApi.getEventCounts(pid, undefined, now.getMonth() + 1, now.getFullYear()),
+              dashApi.getEventCounts(pid, undefined, prev.getMonth() + 1, prev.getFullYear()),
             ]).then(async ([allRes, monthRes, lastRes]) => {
               if (allRes.ok) {
                 const raw = await allRes.json();

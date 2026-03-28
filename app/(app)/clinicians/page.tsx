@@ -28,16 +28,8 @@ interface Room {
   active_clinician_id: string;
 }
 
-// Event entry from get_event_counts — may be array of raw events or aggregate object
-interface EventEntry {
-  event_type?: string;
-  clinician_id?: string;
-  created_at?: string;
-  // flat aggregate fields
-  qr_scans?: number | null;
-  google_clicks?: number | null;
-  feedback_clicks?: number | null;
-}
+// Normalised per-clinician event counts (mapped from get_event_counts response)
+type ClinicianCounts = { qr_scans: number; google_clicks: number; feedback_clicks: number };
 
 type TimeToggle = "month" | "all";
 
@@ -82,41 +74,27 @@ function toDateInput(d: string | number | null | undefined): string {
 
 // ─── Event count helpers ───────────────────────────────────────────────────────
 
-function countEvents(
-  events: EventEntry[],
-  clinicianId: string,
-  eventType: string,
-  toggle: TimeToggle
-): number {
-  // If events is an array of raw event objects (has event_type field)
-  if (events.length > 0 && "event_type" in events[0]) {
-    return events.filter(
-      (e) =>
-        e.clinician_id === clinicianId &&
-        e.event_type === eventType &&
-        (toggle === "all" || (e.created_at ? isThisMonth(e.created_at) : false))
-    ).length;
-  }
-  // Aggregate shape (no event_type field): per-clinician lookup is handled
-  // in the caller via aggRow. Raw per-event rows are handled above.
-  return 0;
-}
-
-function aggregateCounts(events: EventEntry[], toggle: TimeToggle) {
-  if (events.length > 0 && "event_type" in events[0]) {
-    const filtered = toggle === "all" ? events : events.filter((e) => e.created_at && isThisMonth(e.created_at));
+/**
+ * Normalises the get_event_counts response into a flat ClinicianCounts object.
+ * Handles both shapes Xano may return:
+ *   (a) array of raw per-event rows  [{ event_type, clinician_id, created_at }, …]
+ *   (b) flat aggregate  { qr_scan: N, google_review_click: N, feedback_click: N }
+ * Also accepts the _s / _clicks suffixed spellings for forward-compat.
+ */
+function toClinicianCounts(raw: unknown): ClinicianCounts {
+  if (Array.isArray(raw)) {
+    const rows = raw as Array<{ event_type?: string }>;
     return {
-      qr_scans:       filtered.filter((e) => e.event_type === "qr_scan").length,
-      google_clicks:  filtered.filter((e) => e.event_type === "google_review_click").length,
-      feedback_clicks: filtered.filter((e) => e.event_type === "feedback_click").length,
+      qr_scans:        rows.filter((e) => e.event_type === "qr_scan").length,
+      google_clicks:   rows.filter((e) => e.event_type === "google_review_click").length,
+      feedback_clicks: rows.filter((e) => e.event_type === "feedback_click").length,
     };
   }
-  // Flat aggregate fallback
-  const agg = events[0] as EventEntry | undefined;
+  const obj = raw as Record<string, unknown>;
   return {
-    qr_scans:        agg?.qr_scans ?? null,
-    google_clicks:   agg?.google_clicks ?? null,
-    feedback_clicks: agg?.feedback_clicks ?? null,
+    qr_scans:        Number(obj.qr_scans        ?? obj.qr_scan             ?? 0),
+    google_clicks:   Number(obj.google_clicks   ?? obj.google_review_click ?? 0),
+    feedback_clicks: Number(obj.feedback_clicks ?? obj.feedback_click      ?? 0),
   };
 }
 
@@ -804,7 +782,7 @@ export default function CliniciansPage() {
 
   const [clinicians,    setClinicians]    = useState<ClinicianRow[]>([]);
   const [rooms,         setRooms]         = useState<Room[]>([]);
-  const [events,        setEvents]        = useState<EventEntry[]>([]);
+  const [clinicianEventMap, setClinicianEventMap] = useState<Map<string, ClinicianCounts>>(new Map());
   const [loading,       setLoading]       = useState(true);
   const [roomsLoading,  setRoomsLoading]  = useState(true);
   const [error,         setError]         = useState("");
@@ -889,8 +867,10 @@ export default function CliniciansPage() {
       } else if (!dashRes.ok) {
         setError(`Failed to load clinicians (${dashRes.status})`);
       }
+      return merged;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
+      return [];
     }
   }, []);
 
@@ -915,23 +895,36 @@ export default function CliniciansPage() {
     Promise.all([
       loadClinicians(),
       loadRooms(),
-      practiceId
-        ? dashApi.getEventCounts(practiceId).then(async (r) => {
-            if (r.ok) {
-              const d = await r.json();
-              console.log("[get_event_counts clinicians] practiceId:", practiceId, "| raw response:", d);
-              setEvents(Array.isArray(d) ? d : d ? [d] : []);
+      // getPractice resolves practice_id (same field resolution as dashboard)
+      // and also sets the practice name for the rooms section header.
+      dashApi.getPractice().then(async (r): Promise<number | null> => {
+        if (!r.ok) return null;
+        const d = await r.json();
+        const n = (d?.practice_name ?? d?.name ?? "") as string;
+        if (n) setPracticeName(n);
+        return (d?.practice_id ?? d?.id ?? null) as number | null;
+      }).catch((): number | null => null),
+    ]).then(async ([clinList, , pid]) => {
+      // Once we have both the clinician list and the practice_id, fetch
+      // per-clinician event counts in parallel (one request per clinician).
+      if (!pid || !clinList?.length) return;
+      const entries: [string, ClinicianCounts][] = await Promise.all(
+        clinList
+          .filter((c) => c.clinician_id)
+          .map(async (c): Promise<[string, ClinicianCounts]> => {
+            try {
+              const r = await dashApi.getEventCounts(pid, c.clinician_id);
+              if (!r.ok) return [c.clinician_id, { qr_scans: 0, google_clicks: 0, feedback_clicks: 0 }];
+              const raw = await r.json();
+              console.log(`[get_event_counts] ${c.clinician_id}:`, raw);
+              return [c.clinician_id, toClinicianCounts(raw)];
+            } catch {
+              return [c.clinician_id, { qr_scans: 0, google_clicks: 0, feedback_clicks: 0 }];
             }
-          }).catch(() => {})
-        : Promise.resolve(),
-      dashApi.getPractice().then(async (r) => {
-        if (r.ok) {
-          const d = await r.json();
-          const n = d?.practice_name ?? d?.name ?? "";
-          if (n) setPracticeName(n);
-        }
-      }).catch(() => {}),
-    ]).finally(() => setLoading(false));
+          })
+      );
+      setClinicianEventMap(new Map(entries));
+    }).finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -968,8 +961,6 @@ export default function CliniciansPage() {
       roomByClinicianId[room.active_clinician_id] = room;
     }
   }
-
-  const isEventsRaw = events.length > 0 && "event_type" in events[0];
 
   const thSm = "px-4 py-3 text-[11px] font-bold text-slate-light uppercase tracking-wider text-left whitespace-nowrap";
   const td   = "px-4 py-3.5 align-top";
@@ -1047,21 +1038,13 @@ export default function CliniciansPage() {
                   const room    = roomByClinicianId[c.clinician_id];
                   const hasRoom = !!room;
 
-                  // For aggregate per-clinician shape (no event_type field), look up by clinician_id
-                  // and default null fields to 0. For raw per-event rows, count via countEvents.
-                  const aggRow = !isEventsRaw && events.length > 0
-                    ? events.find((e) => e.clinician_id === c.clinician_id)
-                    : undefined;
-
-                  const qrScans       = isEventsRaw
-                    ? countEvents(events, c.clinician_id, "qr_scan",             toggle)
-                    : aggRow ? (aggRow.qr_scans       ?? 0) : null;
-                  const googleReviews = isEventsRaw
-                    ? countEvents(events, c.clinician_id, "google_review_click", toggle)
-                    : aggRow ? (aggRow.google_clicks   ?? 0) : null;
-                  const fbCompleted   = isEventsRaw
-                    ? countEvents(events, c.clinician_id, "feedback_click",      toggle)
-                    : aggRow ? (aggRow.feedback_clicks ?? 0) : null;
+                  // Per-clinician event counts fetched individually from Xano via
+                  // getEventCounts(practiceId, clinician_id). Defaults to 0 when absent.
+                  const clinCounts    = clinicianEventMap.get(c.clinician_id)
+                                        ?? { qr_scans: 0, google_clicks: 0, feedback_clicks: 0 };
+                  const qrScans       = clinCounts.qr_scans;
+                  const googleReviews = clinCounts.google_clicks;
+                  const fbCompleted   = clinCounts.feedback_clicks;
 
                   const plt = (c.redirect_platform ?? "feedbacker").toLowerCase();
                   const pltLabel = plt === "feedbacker" ? "Feedbacker" : plt === "14fish" ? "14Fish" : "Custom";

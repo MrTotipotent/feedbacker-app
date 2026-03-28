@@ -264,8 +264,9 @@ export const dashApi = {
       body: JSON.stringify({ room_id, room_name, active_clinician_id }),
     }),
 
-  getEventCounts: (practice_id: number, month?: number, year?: number) => {
+  getEventCounts: (practice_id: number, clinician_id?: string, month?: number, year?: number) => {
     const p = new URLSearchParams({ practice_id: String(practice_id) });
+    if (clinician_id)        p.set("clinician_id", clinician_id);
     if (month !== undefined) p.set("month", String(month));
     if (year  !== undefined) p.set("year",  String(year));
     return apiFetch(`${DASH_API}/get_event_counts?${p}`);
