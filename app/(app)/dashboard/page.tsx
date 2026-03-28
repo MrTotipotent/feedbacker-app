@@ -561,7 +561,7 @@ export default function DashboardPage() {
         <span>
           Showing all data for <strong>{practiceName}</strong>
           {" "}—{" "}
-          <strong>{thisMonthCount}</strong> submission{thisMonthCount !== 1 ? "s" : ""} this month
+          <strong>{eventCountsMonth?.qr_scans ?? 0}</strong> scan{(eventCountsMonth?.qr_scans ?? 0) !== 1 ? "s" : ""} this month
         </span>
       </div>
 
