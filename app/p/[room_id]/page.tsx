@@ -28,8 +28,6 @@ type Step = 1 | 2;
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-const DEBUG_DAY_OVERRIDE: number | null = 5; // Friday — fft_url test
-
 export default function RoomLandingPage({
   params,
 }: {
@@ -151,7 +149,7 @@ export default function RoomLandingPage({
 
   // ── Button 1: day-based channel rotation (fallback to Google → "#") ───────
   const googleUrl = clinician.google_review_url.trim() || null;
-  const today     = DEBUG_DAY_OVERRIDE ?? new Date().getDay(); // 0=Sun … 6=Sat
+  const today     = new Date().getDay(); // 0=Sun … 6=Sat
 
   // Button 1 label is always the same static string — only the URL changes
   const B1_LABEL = "Let others know! Leave them a review on our public page ⭐";
