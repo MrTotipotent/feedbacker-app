@@ -974,16 +974,10 @@ export default function CliniciansPage() {
           <h1 className="text-2xl font-bold text-nhs-blue-dark">Clinician Profiles</h1>
           <p className="text-sm text-slate-light mt-0.5">Manage your practice clinicians and their feedback setup</p>
         </div>
-        <div className="flex items-center gap-3">
-          <button onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 bg-nhs-blue text-white text-sm font-semibold px-4 py-2.5 rounded-xl hover:bg-nhs-blue-dark active:scale-[0.98] transition-all shadow-md whitespace-nowrap">
-            <span className="text-lg leading-none">+</span> Add Clinician
-          </button>
-          <button onClick={handleAddRoom} disabled={addingRoom || !practiceId}
-            className="flex items-center gap-2 bg-nhs-blue text-white text-sm font-semibold px-4 py-2.5 rounded-xl hover:bg-nhs-blue-dark active:scale-[0.98] disabled:opacity-50 transition-all shadow-md whitespace-nowrap">
-            <span className="text-lg leading-none">+</span> {addingRoom ? "Adding…" : "Add Room"}
-          </button>
-        </div>
+        <button onClick={() => setShowModal(true)}
+          className="flex items-center gap-2 bg-nhs-blue text-white text-sm font-semibold px-4 py-2.5 rounded-xl hover:bg-nhs-blue-dark active:scale-[0.98] transition-all shadow-md whitespace-nowrap">
+          <span className="text-lg leading-none">+</span> Add Clinician
+        </button>
       </div>
 
       {/* Time toggle */}
