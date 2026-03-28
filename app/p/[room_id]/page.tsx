@@ -112,11 +112,15 @@ export default function RoomLandingPage({
     const sentimentEnc = sentiment.trim()
       ? `&sentiment=${encodeURIComponent(sentiment.trim())}`
       : "";
-    const feedbackUrl =
-      clinician.redirect_platform === "feedbacker" || !clinician.redirect_url
-        ? `/survey?clinician_id=${encodeURIComponent(clinician.clinician_id)}${sentimentEnc}`
-        : clinician.redirect_url;
-    window.open(feedbackUrl, "_blank", "noopener,noreferrer");
+    if (clinician.redirect_platform === "feedbacker" || !clinician.redirect_url) {
+      // Internal Feedbacker survey — navigate same tab so step 2 is always
+      // seen before leaving, and popup blockers cannot interfere.
+      // Parameter name is "id" to match what /survey reads via params.get("id").
+      window.location.href = `/survey?id=${encodeURIComponent(clinician.clinician_id)}${sentimentEnc}`;
+    } else {
+      // External redirect URL — open in new tab as intended
+      window.open(clinician.redirect_url, "_blank", "noopener,noreferrer");
+    }
   }
 
   // ── Loading / error ────────────────────────────────────────────────────────
