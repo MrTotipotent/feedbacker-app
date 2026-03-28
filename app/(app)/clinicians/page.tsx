@@ -919,6 +919,7 @@ export default function CliniciansPage() {
         ? dashApi.getEventCounts(practiceId).then(async (r) => {
             if (r.ok) {
               const d = await r.json();
+              console.log("[get_event_counts clinicians] practiceId:", practiceId, "| raw response:", d);
               setEvents(Array.isArray(d) ? d : d ? [d] : []);
             }
           }).catch(() => {})
@@ -1037,8 +1038,7 @@ export default function CliniciansPage() {
                   <th className={thSm}>Room</th>
                   <th className={thSm}>QR Scans</th>
                   <th className={thSm}>Google Reviews</th>
-                  <th className={thSm}>Feedbacks Completed</th>
-                  <th className={thSm}>Submissions</th>
+                  <th className={thSm}>Clinician Feedbacks</th>
                   <th className={`${thSm} text-right`}>Actions</th>
                 </tr>
               </thead>
@@ -1151,16 +1151,9 @@ export default function CliniciansPage() {
                         <span className="font-semibold text-slate">{googleReviews ?? "—"}</span>
                       </td>
 
-                      {/* Feedbacks Completed */}
+                      {/* Clinician Feedbacks */}
                       <td className={td}>
                         <span className="font-semibold text-slate">{fbCompleted ?? "—"}</span>
-                      </td>
-
-                      {/* Submissions */}
-                      <td className={td}>
-                        <span className="font-semibold text-slate">
-                          {c.total_submissions != null ? c.total_submissions : "—"}
-                        </span>
                       </td>
 
                       {/* Actions */}

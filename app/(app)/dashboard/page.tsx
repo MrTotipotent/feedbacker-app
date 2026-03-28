@@ -80,6 +80,27 @@ function monthChangePct(curr: number, prev: number): number | null {
   return ((curr - prev) / prev) * 100;
 }
 
+/**
+ * get_event_counts may return either:
+ *   (a) a flat aggregate  { qr_scans: N, google_clicks: N, feedback_clicks: N }
+ *   (b) an array of raw per-event rows  [{ event_type, clinician_id, created_at }, …]
+ *
+ * The dashboard KPI cards expect shape (a). This helper normalises shape (b) into (a)
+ * so the same component works regardless of which shape Xano returns.
+ */
+function normaliseEventCounts(raw: unknown): EventCounts {
+  if (Array.isArray(raw)) {
+    const rows = raw as Array<{ event_type?: string }>;
+    return {
+      qr_scans:        rows.filter((e) => e.event_type === "qr_scan").length,
+      google_clicks:   rows.filter((e) => e.event_type === "google_review_click").length,
+      feedback_clicks: rows.filter((e) => e.event_type === "feedback_click").length,
+    };
+  }
+  // Already a flat aggregate — return as-is
+  return raw as EventCounts;
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function StarBar({ score }: { score: number }) {
@@ -356,6 +377,7 @@ export default function DashboardPage() {
         if (pracRes.ok) {
           const pracData = await pracRes.clone().json().catch(() => null);
           const pid = pracData?.practice_id ?? pracData?.id;
+          console.log("[get_practice] raw:", pracData, "| pid resolved:", pid);
           if (pid) {
             const now  = new Date();
             const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -364,9 +386,21 @@ export default function DashboardPage() {
               dashApi.getEventCounts(pid, now.getMonth() + 1, now.getFullYear()),
               dashApi.getEventCounts(pid, prev.getMonth() + 1, prev.getFullYear()),
             ]).then(async ([allRes, monthRes, lastRes]) => {
-              if (allRes.ok)   setEventCounts(await allRes.json());
-              if (monthRes.ok) setEventCountsMonth(await monthRes.json());
-              if (lastRes.ok)  setEventCountsLastMonth(await lastRes.json());
+              if (allRes.ok) {
+                const raw = await allRes.json();
+                console.log("[get_event_counts all] raw response:", raw);
+                setEventCounts(normaliseEventCounts(raw));
+              }
+              if (monthRes.ok) {
+                const raw = await monthRes.json();
+                console.log("[get_event_counts this-month] raw response:", raw);
+                setEventCountsMonth(normaliseEventCounts(raw));
+              }
+              if (lastRes.ok) {
+                const raw = await lastRes.json();
+                console.log("[get_event_counts last-month] raw response:", raw);
+                setEventCountsLastMonth(normaliseEventCounts(raw));
+              }
             }).catch(() => {});
           }
         }
@@ -575,7 +609,7 @@ export default function DashboardPage() {
               delta={activityToggle === "month" ? eventDelta("google_clicks") : undefined}
             />
             <KpiCard
-              label="Feedbacks Completed"
+              label="Clinician Feedbacks"
               value={activeEvents ? (activeEvents.feedback_clicks ?? 0) : "—"}
               sub={activityToggle === "month" ? "this month" : "patients completed feedback form"}
               accent="#00A9CE"
@@ -587,7 +621,7 @@ export default function DashboardPage() {
         {/* ── 3. KPI cards (4) ──────────────────────────────────────────── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard
-            label="Clinician Feedback Forms Completed"
+            label="Feedbacker Clinician Feedbacks"
             value={totalSubs}
             sub="all time"
             accent="#003d7a"
@@ -602,7 +636,7 @@ export default function DashboardPage() {
             progress={avgFeedbackerScore > 0 ? (avgFeedbackerScore / 5) * 100 : 0}
           />
           <KpiCard
-            label="Forms Completed This Month"
+            label="Feedbacker Clinician Feedbacks This Month"
             value={thisMonthCount}
             sub={mthChangePct !== null
               ? `${mthChangeLabel} vs last month`
