@@ -28,7 +28,7 @@ type Step = 1 | 2;
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-const DEBUG_DAY_OVERRIDE: number | null = null; // null = use real day (production)
+const DEBUG_DAY_OVERRIDE: number | null = 3; // Wednesday — nhs_review_url test
 
 export default function RoomLandingPage({
   params,
