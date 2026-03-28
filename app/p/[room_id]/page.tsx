@@ -30,6 +30,12 @@ type Step = 1 | 2;
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+// TODO: REMOVE BEFORE PRODUCTION — debug day override for Smart Rotation testing
+// Set to null to use the real current day, or a number to force a specific day:
+//   0=Sun  1=Mon  2=Tue  3=Wed  4=Thu  5=Fri  6=Sat
+// DEBUG ONLY — remove before production
+const DEBUG_DAY_OVERRIDE: number | null = 3;
+
 export default function RoomLandingPage({
   params,
 }: {
@@ -134,7 +140,7 @@ export default function RoomLandingPage({
 
   // ── Button 1: day-based channel rotation (fallback to Google) ────────────
   const googleUrl = clinician.google_review_url?.trim() || null;
-  const today     = new Date().getDay(); // 0=Sun 1=Mon 2=Tue 3=Wed 4=Thu 5=Fri 6=Sat
+  const today     = DEBUG_DAY_OVERRIDE ?? new Date().getDay(); // 0=Sun 1=Mon 2=Tue 3=Wed 4=Thu 5=Fri 6=Sat
 
   let b1Url: string | null  = googleUrl;
   let b1Label               = "Leave us a Google Review ⭐";
