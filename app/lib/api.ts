@@ -128,6 +128,37 @@ export const authApi = {
    *  just-stored token before the page can handle it gracefully. */
   getMe: (skipRedirect = false) =>
     apiFetch(`${AUTH_API}/auth/me`, {}, skipRedirect),
+
+  /** Sends a one-time temporary password to the given email address */
+  requestTempPassword: (email: string) =>
+    apiFetch(
+      `${AUTH_API}/auth/request-temp-password`,
+      { method: "POST", body: JSON.stringify({ email }) },
+      true
+    ),
+
+  /** Exchanges email + temp password for a short-lived authToken */
+  tempLogin: (email: string, temp_password: string) =>
+    apiFetch(
+      `${AUTH_API}/auth/temp-login`,
+      { method: "POST", body: JSON.stringify({ email, temp_password }) },
+      true
+    ),
+
+  /**
+   * Sets a new permanent password.
+   * Uses the one-time authToken from tempLogin — NOT the stored session token.
+   * Direct fetch (not apiFetch) so it doesn't accidentally read localStorage.
+   */
+  resetPassword: (authToken: string, password: string) =>
+    fetch(`${AUTH_API}/auth/reset-password`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({ password }),
+    }),
 };
 
 // ─── Dashboard / protected endpoints ─────────────────────────────────────────

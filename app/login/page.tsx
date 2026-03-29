@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { authApi } from "@/app/lib/api";
 import { setToken, setUser } from "@/app/lib/auth";
@@ -31,6 +31,22 @@ export default function LoginPage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
+
+  // Forgot password flow
+  const [forgotMode, setForgotMode]       = useState(false);
+  const [forgotEmail, setForgotEmail]     = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotError, setForgotError]     = useState("");
+  const [forgotSuccess, setForgotSuccess] = useState(false);
+
+  // Success banner — populated from ?message= query param after password reset
+  const [successBanner, setSuccessBanner] = useState("");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const msg = params.get("message");
+    if (msg) setSuccessBanner(msg);
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -96,6 +112,22 @@ export default function LoginPage() {
     setError("");
   };
 
+  async function handleForgotSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setForgotError("");
+    setForgotLoading(true);
+    try {
+      const res = await authApi.requestTempPassword(forgotEmail);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message ?? `Request failed (${res.status})`);
+      setForgotSuccess(true);
+    } catch (err: unknown) {
+      setForgotError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setForgotLoading(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-off-white flex flex-col">
       {/* Header */}
@@ -107,128 +139,205 @@ export default function LoginPage() {
 
       <div className="flex-1 flex items-center justify-center px-4 py-10">
         <div className="w-full max-w-sm">
+
+          {/* Success banner — shown after password reset redirect */}
+          {successBanner && (
+            <div className="mb-4 bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-700 font-medium flex items-center gap-2">
+              <span>✓</span> {successBanner}
+            </div>
+          )}
+
           {/* Card */}
           <div className="bg-white rounded-2xl shadow-card overflow-hidden">
-            {/* Tab toggle */}
-            <div className="flex border-b border-border">
-              {(["login", "signup"] as Mode[]).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => { setMode(m); setError(""); }}
-                  className={`flex-1 py-3.5 text-sm font-semibold transition-colors ${
-                    mode === m
-                      ? "text-nhs-blue border-b-2 border-nhs-blue bg-white"
-                      : "text-slate-light hover:text-slate"
-                  }`}
-                >
-                  {m === "login" ? "Sign In" : "Create Account"}
-                </button>
-              ))}
-            </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              {/* Signup-only fields */}
-              {mode === "signup" && (
-                <>
-                  <Field label="Full name" required>
-                    <input
-                      type="text"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="Dr Sarah Mitchell"
-                      required
-                      className={inputCls}
-                    />
-                  </Field>
+            {/* Tab toggle — hidden while in forgot password mode */}
+            {!forgotMode && (
+              <div className="flex border-b border-border">
+                {(["login", "signup"] as Mode[]).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => { setMode(m); setError(""); }}
+                    className={`flex-1 py-3.5 text-sm font-semibold transition-colors ${
+                      mode === m
+                        ? "text-nhs-blue border-b-2 border-nhs-blue bg-white"
+                        : "text-slate-light hover:text-slate"
+                    }`}
+                  >
+                    {m === "login" ? "Sign In" : "Create Account"}
+                  </button>
+                ))}
+              </div>
+            )}
 
-                  <Field label="Role">
-                    <select
-                      value={role}
-                      onChange={(e) => setRole(e.target.value as "clinician" | "practice_manager")}
-                      className={inputCls}
-                    >
-                      <option value="clinician">Clinician</option>
-                      <option value="practice_manager">Practice Manager</option>
-                    </select>
-                  </Field>
-
-                  <Field label="Account type">
-                    <select
-                      value={accountType}
-                      onChange={(e) => setAccountType(e.target.value)}
-                      className={inputCls}
-                    >
-                      {ACCOUNT_TYPES.map((t) => (
-                        <option key={t.value} value={t.value}>{t.label}</option>
-                      ))}
-                    </select>
-                  </Field>
-
-                </>
-              )}
-
-              {/* Common fields */}
-              <Field label="Email address" required>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@practice.nhs.uk"
-                  required
-                  autoComplete="email"
-                  className={inputCls}
-                />
-              </Field>
-
-              <Field label="Password" required>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder={mode === "login" ? "••••••••" : "Min. 8 characters"}
-                  required
-                  autoComplete={mode === "login" ? "current-password" : "new-password"}
-                  className={inputCls}
-                />
-              </Field>
-
-              {/* Error */}
-              {error && (
-                <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700">
-                  {error}
-                </div>
-              )}
-
-              {/* Submit */}
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-nhs-blue text-white font-semibold py-3 rounded-xl hover:bg-nhs-blue-dark active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed transition-all shadow-md"
-              >
-                {loading ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8z" />
-                    </svg>
-                    {mode === "login" ? "Signing in…" : "Creating account…"}
-                  </span>
-                ) : mode === "login" ? "Sign In" : "Create Account"}
-              </button>
-
-              {/* Toggle link */}
-              <p className="text-center text-xs text-slate-light">
-                {mode === "login" ? "Don't have an account?" : "Already have an account?"}{" "}
+            {forgotMode ? (
+              /* ── Forgot password inline section ──────────────────────────── */
+              <div className="p-6 space-y-4">
                 <button
                   type="button"
-                  onClick={toggle}
-                  className="text-nhs-blue font-semibold hover:underline"
+                  onClick={() => { setForgotMode(false); setForgotError(""); setForgotSuccess(false); setForgotEmail(""); }}
+                  className="text-xs text-slate-light hover:text-slate flex items-center gap-1"
                 >
-                  {mode === "login" ? "Sign up" : "Sign in"}
+                  ← Back to login
                 </button>
-              </p>
-            </form>
+                <p className="text-sm font-semibold text-nhs-blue-dark">Reset your password</p>
+                {forgotSuccess ? (
+                  <div className="space-y-3">
+                    <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-3 text-sm text-green-700">
+                      Check your email — a temporary password has been sent.
+                    </div>
+                    <a
+                      href="/reset-password"
+                      className="block text-sm text-nhs-blue font-semibold hover:underline"
+                    >
+                      Set new password →
+                    </a>
+                  </div>
+                ) : (
+                  <form onSubmit={handleForgotSubmit} className="space-y-4">
+                    <Field label="Email address" required>
+                      <input
+                        type="email"
+                        value={forgotEmail}
+                        onChange={(e) => setForgotEmail(e.target.value)}
+                        placeholder="you@practice.nhs.uk"
+                        required
+                        autoComplete="email"
+                        className={inputCls}
+                      />
+                    </Field>
+                    {forgotError && (
+                      <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700">
+                        {forgotError}
+                      </div>
+                    )}
+                    <button
+                      type="submit"
+                      disabled={forgotLoading}
+                      className="w-full bg-nhs-blue text-white font-semibold py-3 rounded-xl hover:bg-nhs-blue-dark active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed transition-all shadow-md"
+                    >
+                      {forgotLoading ? "Sending…" : "Send temporary password"}
+                    </button>
+                  </form>
+                )}
+              </div>
+            ) : (
+              /* ── Normal login / signup form ───────────────────────────────── */
+              <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                {/* Signup-only fields */}
+                {mode === "signup" && (
+                  <>
+                    <Field label="Full name" required>
+                      <input
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="Dr Sarah Mitchell"
+                        required
+                        className={inputCls}
+                      />
+                    </Field>
+
+                    <Field label="Role">
+                      <select
+                        value={role}
+                        onChange={(e) => setRole(e.target.value as "clinician" | "practice_manager")}
+                        className={inputCls}
+                      >
+                        <option value="clinician">Clinician</option>
+                        <option value="practice_manager">Practice Manager</option>
+                      </select>
+                    </Field>
+
+                    <Field label="Account type">
+                      <select
+                        value={accountType}
+                        onChange={(e) => setAccountType(e.target.value)}
+                        className={inputCls}
+                      >
+                        {ACCOUNT_TYPES.map((t) => (
+                          <option key={t.value} value={t.value}>{t.label}</option>
+                        ))}
+                      </select>
+                    </Field>
+                  </>
+                )}
+
+                {/* Common fields */}
+                <Field label="Email address" required>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@practice.nhs.uk"
+                    required
+                    autoComplete="email"
+                    className={inputCls}
+                  />
+                </Field>
+
+                <Field label="Password" required>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={mode === "login" ? "••••••••" : "Min. 8 characters"}
+                    required
+                    autoComplete={mode === "login" ? "current-password" : "new-password"}
+                    className={inputCls}
+                  />
+                </Field>
+
+                {/* Forgot password link — login mode only */}
+                {mode === "login" && (
+                  <div className="flex justify-end -mt-2">
+                    <button
+                      type="button"
+                      onClick={() => { setForgotMode(true); setError(""); }}
+                      className="text-xs text-nhs-blue hover:underline font-medium"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                )}
+
+                {/* Error */}
+                {error && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700">
+                    {error}
+                  </div>
+                )}
+
+                {/* Submit */}
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-nhs-blue text-white font-semibold py-3 rounded-xl hover:bg-nhs-blue-dark active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed transition-all shadow-md"
+                >
+                  {loading ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8z" />
+                      </svg>
+                      {mode === "login" ? "Signing in…" : "Creating account…"}
+                    </span>
+                  ) : mode === "login" ? "Sign In" : "Create Account"}
+                </button>
+
+                {/* Toggle link */}
+                <p className="text-center text-xs text-slate-light">
+                  {mode === "login" ? "Don't have an account?" : "Already have an account?"}{" "}
+                  <button
+                    type="button"
+                    onClick={toggle}
+                    className="text-nhs-blue font-semibold hover:underline"
+                  >
+                    {mode === "login" ? "Sign up" : "Sign in"}
+                  </button>
+                </p>
+              </form>
+            )}
           </div>
 
           <p className="text-center text-xs text-slate-light mt-6">
