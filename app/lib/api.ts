@@ -115,7 +115,7 @@ export const authApi = {
     email: string;
     password: string;
     role: string;
-    account_type: string;
+    account_type?: string;
   }) =>
     apiFetch(
       `${AUTH_API}/auth/signup`,

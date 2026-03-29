@@ -7,14 +7,6 @@ import { setToken, setUser } from "@/app/lib/auth";
 
 type Mode = "login" | "signup";
 
-const ACCOUNT_TYPES = [
-  { value: "gp",                  label: "GP" },
-  { value: "nurse_practitioner",  label: "Nurse Practitioner" },
-  { value: "pharmacist",          label: "Clinical Pharmacist" },
-  { value: "physiotherapist",     label: "Physiotherapist" },
-  { value: "practice_manager",    label: "Practice Manager" },
-  { value: "other",               label: "Other" },
-];
 
 export default function LoginPage() {
   const router = useRouter();
@@ -26,8 +18,8 @@ export default function LoginPage() {
 
   // Signup extra fields
   const [name, setName]               = useState("");
-  const [role, setRole]               = useState<"clinician" | "practice_manager">("clinician");
-  const [accountType, setAccountType] = useState("gp");
+  const [role, setRole]               = useState<"clinician" | "practice_manager">("practice_manager");
+
 
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
@@ -64,7 +56,6 @@ export default function LoginPage() {
           email,
           password,
           role,
-          account_type: accountType,
         });
       }
 
@@ -249,17 +240,7 @@ export default function LoginPage() {
                       </select>
                     </Field>
 
-                    <Field label="Account type">
-                      <select
-                        value={accountType}
-                        onChange={(e) => setAccountType(e.target.value)}
-                        className={inputCls}
-                      >
-                        {ACCOUNT_TYPES.map((t) => (
-                          <option key={t.value} value={t.value}>{t.label}</option>
-                        ))}
-                      </select>
-                    </Field>
+
                   </>
                 )}
 
