@@ -712,7 +712,7 @@ export default function DashboardPage() {
                 className="text-sm font-semibold px-3 py-1.5 rounded-lg"
                 style={{ background: "#E3F2FD", color: "#005EB8" }}
               >
-                {filteredCount} submission{filteredCount !== 1 ? "s" : ""}
+                {eventCounts?.qr_scans ?? 0} scan{(eventCounts?.qr_scans ?? 0) !== 1 ? "s" : ""}
               </span>
               <select
                 value={filterClinician}
@@ -741,10 +741,10 @@ export default function DashboardPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border bg-off-white">
-                      {["Date", "Clinician", "Platform", "QR Scans", "Sentiment", ""].map((h, i) => (
+                      {["Date", "Clinician", "Platform", "Sentiment", ""].map((h, i) => (
                         <th
                           key={i}
-                          className={`px-5 py-3 text-[11px] font-bold text-slate-light uppercase tracking-wider ${i < 5 ? "text-left" : ""}`}
+                          className={`px-5 py-3 text-[11px] font-bold text-slate-light uppercase tracking-wider ${i < 4 ? "text-left" : ""}`}
                         >
                           {h}
                         </th>
@@ -773,9 +773,6 @@ export default function DashboardPage() {
                           >
                             {s.redirect_platform || "Feedbacker"}
                           </span>
-                        </td>
-                        <td className="px-5 py-3.5 font-semibold text-slate">
-                          —
                         </td>
                         <td className="px-5 py-3.5 text-slate-light max-w-xs">
                           {s.sentiment
