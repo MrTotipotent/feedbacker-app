@@ -8,6 +8,8 @@ import type { StoredUser } from "@/app/lib/auth";
 
 interface SidebarProps {
   user: StoredUser | null;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 const NAV_SECTIONS = [
@@ -83,7 +85,7 @@ const NAV_SECTIONS = [
   },
 ];
 
-export default function Sidebar({ user }: SidebarProps) {
+export default function Sidebar({ user, collapsed = false, onToggleCollapse }: SidebarProps) {
   const pathname = usePathname();
   const router   = useRouter();
   const [open, setOpen] = useState(false);
@@ -100,22 +102,37 @@ export default function Sidebar({ user }: SidebarProps) {
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
       {/* Logo */}
-      <div className="px-6 py-5 border-b border-white/10">
-        <div className="font-serif text-xl text-white leading-tight">
-          Feed<span className="text-nhs-aqua">backer</span>
-        </div>
-        <div className="text-[10px] text-white/40 uppercase tracking-widest mt-0.5">
-          NHS Patient Feedback
-        </div>
+      <div className="px-6 py-5 border-b border-white/10 relative">
+        {!collapsed && (
+          <>
+            <div className="font-serif text-xl text-white leading-tight">
+              Feed<span className="text-nhs-aqua">backer</span>
+            </div>
+            <div className="text-[10px] text-white/40 uppercase tracking-widest mt-0.5">
+              NHS Patient Feedback
+            </div>
+          </>
+        )}
+        <button
+          onClick={onToggleCollapse}
+          className="hidden lg:flex absolute top-4 -right-3 w-6 h-6 rounded-full bg-nhs-blue border border-white/20 items-center justify-center text-white/70 hover:text-white hover:bg-nhs-aqua transition-colors shadow-md"
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          <svg viewBox="0 0 20 20" fill="currentColor" className={`w-3 h-3 transition-transform duration-300 ${collapsed ? 'rotate-180' : ''}`}>
+            <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+          </svg>
+        </button>
       </div>
 
       {/* Nav */}
       <nav className="flex-1 py-3 overflow-y-auto">
         {NAV_SECTIONS.map((section) => (
           <div key={section.label} className="mb-1">
-            <p className="px-6 pt-4 pb-1 text-[9px] font-bold text-white/30 uppercase tracking-[1.5px]">
-              {section.label}
-            </p>
+            {!collapsed && (
+              <p className="px-6 pt-4 pb-1 text-[9px] font-bold text-white/30 uppercase tracking-[1.5px]">
+                {section.label}
+              </p>
+            )}
             {section.items.map((item) => {
               const active = pathname === item.href || pathname.startsWith(item.href + "/");
               return (
@@ -123,14 +140,14 @@ export default function Sidebar({ user }: SidebarProps) {
                   key={item.href}
                   href={item.href}
                   onClick={() => setOpen(false)}
-                  className={`flex items-center gap-3 px-6 py-2.5 text-sm font-medium transition-all border-l-[3px] ${
+                  className={`flex items-center ${collapsed ? 'justify-center px-0' : 'gap-3 px-6'} py-2.5 text-sm font-medium transition-all border-l-[3px] ${
                     active
                       ? "bg-white/10 text-white border-nhs-aqua"
                       : "text-white/65 border-transparent hover:bg-white/5 hover:text-white"
                   }`}
                 >
                   {item.icon}
-                  {item.label}
+                  {!collapsed && item.label}
                 </Link>
               );
             })}
@@ -140,26 +157,28 @@ export default function Sidebar({ user }: SidebarProps) {
 
       {/* User footer */}
       <div className="px-4 py-4 border-t border-white/10">
-        <div className="flex items-center gap-3 mb-3">
+        <div className={`flex items-center mb-3 ${collapsed ? 'justify-center' : 'gap-3'}`}>
           <div className="w-8 h-8 rounded-full bg-nhs-aqua flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
             {initials}
           </div>
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-white truncate">{user?.name ?? "—"}</p>
-            <p className="text-[11px] text-white/45 capitalize">
-              {user?.role?.replace("_", " ") ?? ""}
-            </p>
-          </div>
+          {!collapsed && (
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-white truncate">{user?.name ?? "—"}</p>
+              <p className="text-[11px] text-white/45 capitalize">
+                {user?.role?.replace("_", " ") ?? ""}
+              </p>
+            </div>
+          )}
         </div>
         <button
           onClick={handleLogout}
-          className="w-full flex items-center gap-2 text-xs text-white/50 hover:text-white/90 transition-colors py-1"
+          className={`w-full flex items-center text-xs text-white/50 hover:text-white/90 transition-colors py-1 ${collapsed ? 'justify-center' : 'gap-2'}`}
         >
-          <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+          <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 flex-shrink-0">
             <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 001 1h6a1 1 0 000-2H4V5h5a1 1 0 000-2H3zm11.707 4.293a1 1 0 010 1.414L13.414 10l1.293 1.293a1 1 0 01-1.414 1.414l-2-2a1 1 0 010-1.414l2-2a1 1 0 011.414 0z" clipRule="evenodd" />
             <path fillRule="evenodd" d="M13 10a1 1 0 01-1 1H7a1 1 0 110-2h5a1 1 0 011 1z" clipRule="evenodd" />
           </svg>
-          Sign out
+          {!collapsed && 'Sign out'}
         </button>
       </div>
     </div>
@@ -184,8 +203,7 @@ export default function Sidebar({ user }: SidebarProps) {
       )}
 
       <aside
-        className={`fixed top-0 left-0 h-full w-60 bg-nhs-blue-dark z-50 flex flex-col transition-transform duration-300 ease-in-out
-          ${open ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}
+        className={`fixed top-0 left-0 h-full bg-nhs-blue-dark z-50 flex flex-col transition-all duration-300 ease-in-out ${open ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0 ${collapsed ? 'w-16' : 'w-60'}`}
       >
         <button
           onClick={() => setOpen(false)}

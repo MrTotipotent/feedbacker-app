@@ -11,6 +11,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [status, setStatus] = useState<"loading" | "ok">("loading");
   const [user, setLocalUser] = useState<StoredUser | null>(null);
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('sidebar_collapsed') === 'true';
+    }
+    return false;
+  });
 
   useEffect(() => {
     const token = getToken();
@@ -57,9 +63,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-off-white">
-      <Sidebar user={user} />
+      <Sidebar user={user} collapsed={collapsed} onToggleCollapse={() => {
+        setCollapsed(p => {
+          const next = !p;
+          localStorage.setItem('sidebar_collapsed', String(next));
+          return next;
+        });
+      }} />
       {/* offset for desktop sidebar + mobile top bar */}
-      <main className="flex-1 lg:ml-60 pt-14 lg:pt-0 min-h-screen">
+      <main className={`flex-1 pt-14 lg:pt-0 min-h-screen transition-all duration-300 ${collapsed ? 'lg:ml-16' : 'lg:ml-60'}`}>
         {children}
       </main>
     </div>
