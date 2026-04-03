@@ -19,6 +19,7 @@ export default function LoginPage() {
   // Signup extra fields
   const [name, setName]               = useState("");
   const [role, setRole]               = useState<"clinician" | "practice_manager">("practice_manager");
+  const [practiceName, setPracticeName] = useState("");
 
 
   const [loading, setLoading] = useState(false);
@@ -56,6 +57,7 @@ export default function LoginPage() {
           email,
           password,
           role,
+          practice_name: practiceName,
         });
       }
 
@@ -101,6 +103,7 @@ export default function LoginPage() {
   const toggle = () => {
     setMode((m) => (m === "login" ? "signup" : "login"));
     setError("");
+    setPracticeName("");
   };
 
   async function handleForgotSubmit(e: React.FormEvent) {
@@ -240,6 +243,16 @@ export default function LoginPage() {
                       </select>
                     </Field>
 
+                    <Field label="Practice Name" required>
+                      <input
+                        type="text"
+                        value={practiceName}
+                        onChange={(e) => setPracticeName(e.target.value)}
+                        placeholder="e.g. Hockley Farm Medical Practice"
+                        required
+                        className={inputCls}
+                      />
+                    </Field>
 
                   </>
                 )}

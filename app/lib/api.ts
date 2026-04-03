@@ -115,6 +115,7 @@ export const authApi = {
     email: string;
     password: string;
     role: string;
+    practice_name?: string;
     account_type?: string;
   }) =>
     apiFetch(
