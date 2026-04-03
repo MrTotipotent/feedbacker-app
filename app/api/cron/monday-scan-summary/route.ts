@@ -20,7 +20,7 @@ export async function GET(req: Request) {
     });
     if (!res.ok) throw new Error(`Xano error: ${res.status}`);
     const data = await res.json();
-    const { practices, managers, events } = data;
+    const { practices, managers, events } = data.result ?? data;
 
     const results = await Promise.allSettled(
       practices.map(async (practice: any) => {
