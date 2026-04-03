@@ -2,6 +2,10 @@
   "framework": "nextjs",
   "buildCommand": "npm run build",
   "installCommand": "npm install",
+  "crons": [
+    { "path": "/api/cron/monday-scan-summary?secret=feedbacker_cron_2026_xK9mP", "schedule": "0 8 * * 1" },
+    { "path": "/api/cron/wednesday-digest?secret=feedbacker_cron_2026_xK9mP", "schedule": "0 12 * * 3" }
+  ],
   "headers": [
     {
       "source": "/(.*)",
