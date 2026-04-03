@@ -90,12 +90,13 @@ export async function GET(req: Request) {
 </body>
 </html>`;
 
-        await resend.emails.send({
+        const { error: sendError } = await resend.emails.send({
           from: 'Feedbacker <noreply@feedbacker.co.uk>',
           to: manager.email,
           subject: `📊 Your weekly scan summary — ${practiceName}`,
           html,
         });
+        if (sendError) throw new Error(`Resend: ${sendError.message}`);
       })
     );
 
