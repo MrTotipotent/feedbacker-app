@@ -32,6 +32,7 @@ export async function GET(req: Request) {
     const { practices, managers, feedback, clinicians = [] } = data.result ?? data;
 
     // Diagnostic logging — remove once field names are confirmed
+    console.log('[wednesday-digest] Xano response top-level keys:', JSON.stringify(Object.keys(data.result ?? data)));
     console.log(`[wednesday-digest] practices: ${practices?.length}, feedback: ${(feedback as any[])?.length}`);
     if ((feedback as any[])?.length > 0) {
       console.log('[wednesday-digest] feedback[0] keys:', JSON.stringify(Object.keys((feedback as any[])[0])));
