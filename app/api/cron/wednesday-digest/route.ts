@@ -34,7 +34,7 @@ export async function GET(req: Request) {
     const results = await Promise.allSettled(
       practices.map(async (practice: any) => {
         const manager = managers.find((m: any) => m.practices_id === practice.id);
-        if (!manager?.email) return;
+        if (!manager?.email) return 'skipped';
 
         const practiceName = practice.practice_name ?? practice.name ?? 'Your Practice';
 
@@ -48,7 +48,7 @@ export async function GET(req: Request) {
         );
 
         // Skip practices with zero new submissions — no email sent
-        if (newSubmissions.length === 0) return;
+        if (newSubmissions.length === 0) return 'skipped';
 
         const shown = newSubmissions.slice(0, 5);
         const overflow = newSubmissions.length - shown.length;
@@ -93,6 +93,7 @@ export async function GET(req: Request) {
 </body>
 </html>`;
 
+        console.log(`[wednesday-digest] Sending to ${practiceName} (${manager.email}) — ${newSubmissions.length} submission(s)`);
         const { error: sendError } = await resend.emails.send({
           from: 'Feedbacker <noreply@getfeedbacker.com>',
           to: manager.email,
@@ -100,11 +101,14 @@ export async function GET(req: Request) {
           html,
         });
         if (sendError) throw new Error(`Resend: ${sendError.message}`);
+        return 'sent';
       })
     );
 
-    const failed = results.filter(r => r.status === 'rejected').length;
-    return NextResponse.json({ success: true, sent: practices.length - failed, failed });
+    const sent    = results.filter(r => r.status === 'fulfilled' && r.value === 'sent').length;
+    const skipped = results.filter(r => r.status === 'fulfilled' && r.value === 'skipped').length;
+    const failed  = results.filter(r => r.status === 'rejected').length;
+    return NextResponse.json({ success: true, sent, skipped, failed });
 
   } catch (err) {
     console.error('[wednesday-digest]', err);
