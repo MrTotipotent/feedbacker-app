@@ -88,7 +88,7 @@ export async function GET(req: Request) {
 </html>`;
 
         const { error: sendError } = await resend.emails.send({
-          from: 'Feedbacker <noreply@feedbacker.co.uk>',
+          from: 'Feedbacker <noreply@getfeedbacker.com>',
           to: manager.email,
           subject: `💌 Your mid-week digest — ${practiceName}`,
           html,
