@@ -81,12 +81,12 @@ export default function WallOfLovePage() {
         const raw = await revRes.json();
         const subs: Submission[] = Array.isArray(raw) ? raw : [];
 
-        // Keep Feedbacker-native submissions with meaningful sentiment (≥20 chars)
+        // Keep Feedbacker-native submissions with meaningful sentiment (≥3 chars)
         const valid = subs.filter(
           (s) =>
             s.sentiment &&
-            s.sentiment.trim().length >= 20 &&
-            (!s.redirect_platform || s.redirect_platform === "Feedbacker")
+            s.sentiment.trim().length >= 3 &&
+            (!s.redirect_platform || s.redirect_platform.toLowerCase() === "feedbacker")
         );
 
         // Shuffle order randomly so the board always looks fresh
