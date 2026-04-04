@@ -12,6 +12,10 @@ export default function SettingsPage() {
   const [practiceName, setPracticeName] = useState(localUser?.practice_name ?? "");
   const [odsCode, setOdsCode]           = useState((localUser?.ods_code as string) ?? "");
   const [googleUrl, setGoogleUrl]       = useState("");
+  const [googlePlaceId, setGooglePlaceId] = useState("");
+  const [lookingUpPlace, setLookingUpPlace] = useState(false);
+  const [placeConfirm, setPlaceConfirm] = useState<{ name: string; formatted_address: string } | null>(null);
+  const [placeErr, setPlaceErr]         = useState("");
   const [savingPractice, setSavingPractice] = useState(false);
   const [practiceMsg, setPracticeMsg]   = useState("");
   const [practiceErr, setPracticeErr]   = useState("");
@@ -41,6 +45,9 @@ export default function SettingsPage() {
 
       const url = data?.practice?.google_review_url ?? data?.google_review_url ?? "";
       if (url) setGoogleUrl(url);
+
+      const placeId = data?.practice?.google_place_id ?? data?.google_place_id ?? "";
+      if (placeId) setGooglePlaceId(placeId);
 
       const name = data?.practice_name ?? data?.practice?.name ?? data?.name ?? "";
       if (name) setPracticeName(name);
@@ -98,6 +105,7 @@ export default function SettingsPage() {
         practice_name:     practiceName.trim(),
         ods_code:          odsCode.trim(),
         google_review_url: googleUrl.trim(),
+        google_place_id:   googlePlaceId.trim(),
         nhs_review_url:    nhsUrl.trim()         || origNhsUrl,
         healthwatch_url:   healthwatchUrl.trim() || origHealthwatchUrl,
         fft_url:           fftUrl.trim()         || origFftUrl,
@@ -128,6 +136,31 @@ export default function SettingsPage() {
       setTimeout(() => setPracticeErr(""), 4000);
     } finally {
       setSavingPractice(false);
+    }
+  }
+
+  // ── Google Place ID lookup ────────────────────────────────────────────────
+  async function handleLookupPlaceId() {
+    const name = practiceName.trim();
+    if (!name) return;
+    setLookingUpPlace(true);
+    setPlaceConfirm(null);
+    setPlaceErr("");
+    try {
+      const res = await dashApi.lookupPlaceId(name);
+      const body = await res.json();
+      if (!res.ok) throw new Error(body?.message ?? `Failed (${res.status})`);
+      const placeId = body?.place_id ?? body?.result?.place_id;
+      if (!placeId) throw new Error("No Place ID found for this practice name.");
+      setGooglePlaceId(placeId);
+      setPlaceConfirm({
+        name: body?.name ?? body?.result?.name ?? name,
+        formatted_address: body?.formatted_address ?? body?.result?.formatted_address ?? "",
+      });
+    } catch (err: unknown) {
+      setPlaceErr(err instanceof Error ? err.message : "Lookup failed");
+    } finally {
+      setLookingUpPlace(false);
     }
   }
 
@@ -277,6 +310,42 @@ export default function SettingsPage() {
             />
             <p className="text-xs text-slate-light mt-1">
               Patients will be directed here after completing their feedback.
+            </p>
+          </div>
+
+          {/* Google Place ID */}
+          <div>
+            <label className={labelCls}>Google Place ID</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={googlePlaceId}
+                onChange={(e) => { setGooglePlaceId(e.target.value); setPlaceConfirm(null); }}
+                placeholder="e.g. ChIJN1t_tDeuEmsRUsoyG83frY4"
+                className={`${inputCls} font-mono flex-1`}
+              />
+              <button
+                type="button"
+                onClick={handleLookupPlaceId}
+                disabled={lookingUpPlace || !practiceName.trim()}
+                className="flex-shrink-0 px-4 py-2.5 rounded-lg bg-nhs-blue text-white text-sm font-semibold hover:bg-nhs-blue-dark disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                {lookingUpPlace ? "Finding…" : "Find my Place ID"}
+              </button>
+            </div>
+            {placeConfirm && (
+              <div className="mt-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-xs text-green-800">
+                <span className="font-semibold">✅ {placeConfirm.name}</span>
+                {placeConfirm.formatted_address && (
+                  <span className="text-green-700"> — {placeConfirm.formatted_address}</span>
+                )}
+              </div>
+            )}
+            {placeErr && (
+              <p className="mt-1.5 text-xs text-red-600">{placeErr}</p>
+            )}
+            <p className="text-xs text-slate-light mt-1">
+              Used to construct a direct Google review link. Click "Find my Place ID" to auto-fill.
             </p>
           </div>
 

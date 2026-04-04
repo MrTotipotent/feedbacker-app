@@ -263,6 +263,7 @@ export const dashApi = {
       healthwatch_url?: string;
       fft_url?: string;
       google_review_url?: string;
+      google_place_id?: string;
       practice_name?: string;
       ods_code?: string;
       // subscription_started_at  — FORBIDDEN: admin-only, never send from frontend
@@ -308,6 +309,13 @@ export const dashApi = {
     }),
 
   /** PM only — sets which clinician is currently active for the practice QR */
+  /** Looks up a Google Place ID by practice name */
+  lookupPlaceId: (practice_name: string) =>
+    apiFetch(`${DASH_API}/practice/lookup-place-id`, {
+      method: "POST",
+      body: JSON.stringify({ practice_name }),
+    }),
+
   setActiveClinicianRotation: (
     practice_id: string,
     clinician_id: string,

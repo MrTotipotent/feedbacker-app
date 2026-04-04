@@ -16,6 +16,7 @@ interface RoomClinician {
   clinician_id: string;
   clinician_name: string;   // mapped from API field "name"
   google_review_url: string;
+  google_place_id: string;
   redirect_url: string;
   redirect_platform: string;
   rotation_enabled: boolean;
@@ -67,6 +68,7 @@ export default function RoomLandingPage({
         clinician_id:       c.clinician_id      ?? "",
         clinician_name:     c.name              ?? c.clinician_name ?? "",
         google_review_url:  c.google_review_url ?? p.google_review_url ?? "",
+        google_place_id:    p.google_place_id   ?? "",
         redirect_url:       c.redirect_url      ?? "",
         redirect_platform:  c.redirect_platform ?? "",
         rotation_enabled:   c.rotation_enabled  ?? p.rotation_enabled  ?? false,
@@ -148,7 +150,11 @@ export default function RoomLandingPage({
   const firstName = clinician.clinician_name.split(" ")[0] || "";
 
   // ── Button 1: day-based channel rotation (fallback to Google → "#") ───────
-  const googleUrl = clinician.google_review_url.trim() || null;
+  // Prefer Place ID-based URL; fall back to raw google_review_url then "#"
+  const placeId   = clinician.google_place_id.trim();
+  const googleUrl = placeId
+    ? `https://search.google.com/local/writereview?placeid=${placeId}`
+    : clinician.google_review_url.trim() || null;
   const today     = new Date().getDay(); // 0=Sun … 6=Sat
 
   // Button 1 label is always the same static string — only the URL changes
