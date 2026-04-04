@@ -31,6 +31,16 @@ export async function GET(req: Request) {
     const data = await res.json();
     const { practices, managers, feedback, clinicians = [] } = data.result ?? data;
 
+    // Diagnostic logging — remove once field names are confirmed
+    console.log(`[wednesday-digest] practices: ${practices?.length}, feedback: ${(feedback as any[])?.length}`);
+    if ((feedback as any[])?.length > 0) {
+      console.log('[wednesday-digest] feedback[0] keys:', JSON.stringify(Object.keys((feedback as any[])[0])));
+      console.log('[wednesday-digest] feedback[0] sample:', JSON.stringify((feedback as any[])[0]).slice(0, 300));
+    }
+    if (practices?.length > 0) {
+      console.log('[wednesday-digest] practice[0] id:', practices[0].id, 'typeof:', typeof practices[0].id);
+    }
+
     const results = await Promise.allSettled(
       practices.map(async (practice: any) => {
         const manager = managers.find((m: any) => m.practices_id === practice.id);
@@ -46,6 +56,7 @@ export async function GET(req: Request) {
           f.sentiment.trim().length >= 20 &&
           (!f.redirect_platform || f.redirect_platform === 'Feedbacker')
         );
+        console.log(`[wednesday-digest] practice ${practice.id} (${practiceName}): ${newSubmissions.length} matching submissions`);
 
         // Skip practices with zero new submissions — no email sent
         if (newSubmissions.length === 0) return 'skipped';
