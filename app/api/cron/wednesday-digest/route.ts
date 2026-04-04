@@ -31,11 +31,6 @@ export async function GET(req: Request) {
     const data = await res.json();
     const { practices, managers, feedback, clinicians = [] } = data.result ?? data;
 
-    // Cutoff: last Wednesday at 12:01pm (7 days ago)
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - 7);
-    cutoff.setHours(12, 1, 0, 0);
-
     const results = await Promise.allSettled(
       practices.map(async (practice: any) => {
         const manager = managers.find((m: any) => m.practices_id === practice.id);
@@ -43,13 +38,13 @@ export async function GET(req: Request) {
 
         const practiceName = practice.practice_name ?? practice.name ?? 'Your Practice';
 
-        // Filter: this practice, since cutoff, meaningful Feedbacker-native sentiment
+        // TODO: restore 7-day cutoff filter for production
+        // Filter: this practice, meaningful Feedbacker-native sentiment (date cutoff temporarily removed)
         const newSubmissions = (feedback as any[]).filter((f: any) =>
           f.practice_id === practice.id &&
           f.sentiment &&
           f.sentiment.trim().length >= 20 &&
-          (!f.redirect_platform || f.redirect_platform === 'Feedbacker') &&
-          new Date(f.created_at) >= cutoff
+          (!f.redirect_platform || f.redirect_platform === 'Feedbacker')
         );
 
         // Skip practices with zero new submissions — no email sent
