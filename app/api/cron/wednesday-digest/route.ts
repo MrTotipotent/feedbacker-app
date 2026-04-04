@@ -29,7 +29,7 @@ export async function GET(req: Request) {
     });
     if (!res.ok) throw new Error(`Xano error: ${res.status}`);
     const data = await res.json();
-    const { practices, managers, feedback, clinicians = [] } = data.result ?? data;
+    const { practices, managers, events, feedback, clinicians = [] } = data.result ?? data;
 
     // Diagnostic logging — remove once field names are confirmed
     console.log('[wednesday-digest] Xano response top-level keys:', JSON.stringify(Object.keys(data.result ?? data)));
@@ -83,6 +83,34 @@ export async function GET(req: Request) {
           ? `<p style="margin:16px 0 0;font-size:13px;color:#768692;text-align:center;">...and <strong>${overflow} more response${overflow !== 1 ? 's' : ''}</strong> on your dashboard</p>`
           : '';
 
+        const SCAN_TARGET = 25;
+        const totalScans = (events as any[]).filter(
+          (e: any) => e.practice_id === practice.id && e.event_type === 'qr_scan'
+        ).length;
+        const scanPct = Math.min(Math.round((totalScans / SCAN_TARGET) * 100), 100);
+        const scanStatus = totalScans >= SCAN_TARGET
+          ? '🎯 Great work! You hit your scan target this week.'
+          : totalScans >= 13
+          ? "📈 You're on track — keep it up!"
+          : "⚠️ You're behind target — try to get more scans before the week is out.";
+        const barColor = totalScans >= SCAN_TARGET ? '#2E7D32' : totalScans >= 13 ? '#005EB8' : '#E65C00';
+
+        const scanProgressHtml = `
+          <div style="margin-top:28px;padding-top:24px;border-top:1px solid #D8E0E8;">
+            <h2 style="font-size:15px;color:#003d7a;margin:0 0 4px;">📊 Scan Progress This Week</h2>
+            <p style="margin:0 0 14px;font-size:13px;color:#768692;">${totalScans} / ${SCAN_TARGET} scans this week</p>
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:12px;">
+              <tr>
+                <td style="background:#F0F4F9;border-radius:6px;overflow:hidden;height:10px;padding:0;">
+                  <table width="${scanPct}%" cellpadding="0" cellspacing="0">
+                    <tr><td style="background:${barColor};height:10px;border-radius:6px;font-size:0;">&nbsp;</td></tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:0;font-size:13px;color:#425563;font-weight:600;">${scanStatus}</p>
+          </div>`;
+
         const html = `<!DOCTYPE html>
 <html>
 <body style="margin:0;padding:0;background:#F0F4F9;font-family:'DM Sans',Arial,sans-serif;">
@@ -96,6 +124,7 @@ export async function GET(req: Request) {
       <p style="margin:0 0 24px;font-size:14px;color:#768692;">Here's what your patients said about your team this week</p>
       ${cardsHtml}
       ${overflowHtml}
+      ${scanProgressHtml}
       <p style="margin:24px 0 0;font-size:13px;color:#768692;">Your patients appreciate you — keep up the great work. 💙</p>
     </div>
     <div style="padding:20px 32px;border-top:1px solid #D8E0E8;text-align:center;">
