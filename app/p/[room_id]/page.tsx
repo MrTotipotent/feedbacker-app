@@ -102,8 +102,16 @@ export default function RoomLandingPage({
   }
 
   // ── Button destinations ────────────────────────────────────────────────────
-  // Button 1 is a plain <a> tag — no onClick, no API call, no event tracking.
-  // Navigation is handled entirely by the href attribute.
+
+  function handleGoogleReviewClick() {
+    if (!clinician || !room) return;
+    surveyApi.logEvent(
+      "google_review_click",
+      room.id,
+      clinician.clinician_id,
+      room.practice_id
+    ).catch(() => {});
+  }
 
   function handleFeedbackForm() {
     if (!clinician || !room) return;
@@ -237,11 +245,12 @@ export default function RoomLandingPage({
         </div>
 
         <div className="bg-white rounded-2xl shadow-card p-6 space-y-4">
-          {/* Button 1 — review destination: plain anchor, no onClick, no API call */}
+          {/* Button 1 — review destination: fires google_review_click event then navigates */}
           <a
             href={b1Url}
             target={b1Url === "#" ? "_self" : "_blank"}
             rel="noopener noreferrer"
+            onClick={handleGoogleReviewClick}
             className="w-full flex flex-col items-center justify-center gap-1.5 bg-nhs-blue text-white font-semibold py-5 px-6 rounded-2xl hover:bg-nhs-blue-dark active:scale-[0.98] transition-all shadow-md text-center no-underline"
           >
             <span className="text-sm leading-snug font-bold">{B1_LABEL}</span>
