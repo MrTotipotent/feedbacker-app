@@ -52,7 +52,7 @@ export async function GET(req: Request) {
         // TODO: restore 7-day cutoff filter for production
         // Filter: this practice, meaningful Feedbacker-native sentiment (date cutoff temporarily removed)
         const newSubmissions = (feedback as any[]).filter((f: any) =>
-          f.practices_id === practice.id &&
+          String(f.practices_id) === String(practice.id) &&
           f.sentiment &&
           f.sentiment.trim().length >= 20 &&
           (!f.redirect_platform || f.redirect_platform === 'Feedbacker')
