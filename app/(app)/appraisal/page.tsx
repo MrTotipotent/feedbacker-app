@@ -14,7 +14,7 @@ const DOMAIN_ROWS: { key: string; label: string }[] = [
   { key: "empathy_average",        label: "How good was the clinician at being empathetic?" },
   { key: "confidence_average",     label: "How much confidence do you have in this clinician's ability?" },
   { key: "trust_average",          label: "Did you feel the clinician was honest and trustworthy?" },
-  { key: "future_plan_average",    label: "How well did the clinician explain your next steps?" },
+  { key: "futureplan_average",      label: "How well did the clinician explain your next steps?" },
   { key: "escalation_average",     label: "I know what to watch out for and how to seek help." },
   { key: "recommendation_average", label: "Would you be happy to see this clinician again?" },
 ];
@@ -27,17 +27,10 @@ interface ClinicianOption {
   role?: string;
 }
 
-interface Comment {
-  clinician_comment?: string;
-  comment?: string;
-  text?: string;
-  created_at?: string;
-}
-
 interface XanoAppraisal {
   scores?: Record<string, number | null>;
   total_responses?: number | null;
-  top_comments?: Comment[];
+  top_comments?: (string | null)[];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -160,7 +153,7 @@ export default function AppraisalPage() {
   const totalRaw     = raw?.total_responses;
   const totalLabel   = totalRaw != null ? String(totalRaw) : "—";
   const overallScore = scores["overall_average"];
-  const topComments  = raw?.top_comments ?? [];
+  const topComments  = (raw?.top_comments ?? []).filter((c): c is string => typeof c === "string" && c.trim().length > 0);
 
   // For report header: PM shows selected clinician's info; regular user shows own
   const selectedClinician = isPM
@@ -380,20 +373,11 @@ export default function AppraisalPage() {
                     Highest-rated anonymised patient comments for inclusion in appraisal portfolio.
                   </p>
                   <div className="space-y-3">
-                    {topComments.map((c, i) => {
-                      const text = c.clinician_comment ?? c.comment ?? c.text ?? "";
-                      if (!text) return null;
-                      return (
-                        <div key={i} className="bg-off-white rounded-xl px-4 py-3 border border-border">
-                          <p className="text-sm text-slate italic leading-relaxed">&ldquo;{text}&rdquo;</p>
-                          {c.created_at && (
-                            <p className="text-xs text-slate-light mt-1.5">
-                              {new Date(c.created_at).toLocaleDateString("en-GB")}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    })}
+                    {topComments.map((text, i) => (
+                      <div key={i} className="bg-off-white rounded-xl px-4 py-3 border border-border">
+                        <p className="text-sm text-slate italic leading-relaxed">&ldquo;{text}&rdquo;</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

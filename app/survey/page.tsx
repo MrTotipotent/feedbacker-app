@@ -150,12 +150,19 @@ function SurveyInner() {
     setSubmitErr("");
     setSubmitting(true);
     try {
+      const score_overall = (
+        ratings.ease + ratings.listening + ratings.involving + ratings.explaining +
+        ratings.empathy + ratings.confidence + ratings.trust + ratings.futureplan +
+        ratings.escalation + ratings.recommendation
+      ) / 10;
+
       const payload: Record<string, unknown> = {
         clinician_id:      clinicianId,
         sentiment:         sentimentParam, // Step-1 text from /p/[practice_id]; "" when opened directly
         ...Object.fromEntries(
           Object.entries(ratings).map(([k, v]) => [`score_${k}`, Number(v)])
         ),
+        score_overall,
         comment_clinician: clinicianComment.trim() || null,
       };
       const res = await surveyApi.createSubmission(payload);
