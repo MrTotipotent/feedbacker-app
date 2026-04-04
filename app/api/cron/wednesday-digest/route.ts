@@ -4,10 +4,17 @@ import { Resend } from 'resend';
 const XANO = process.env.XANO_CRON_API;
 const CRON_SECRET = process.env.CRON_SECRET;
 
-const WEEKLY_SCAN_QUOTA = 25;
-
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+// Email-safe pastel card colours — mirrors Wall of Love palette
+const CARD_STYLES = [
+  { bg: '#FFFDE7', border: '#EF5350', label: '#7B5E00' },  // warm yellow
+  { bg: '#F1F8E9', border: '#4CAF50', label: '#2E7D32' },  // mint green
+  { bg: '#FCE4EC', border: '#E91E63', label: '#880E4F' },  // soft pink
+  { bg: '#EDE7F6', border: '#7B1FA2', label: '#4527A0' },  // lilac
+  { bg: '#E1F5FE', border: '#0288D1', label: '#01579B' },  // sky blue
+];
 
 export async function GET(req: Request) {
   const secret = new URL(req.url).searchParams.get('secret');
@@ -22,47 +29,52 @@ export async function GET(req: Request) {
     });
     if (!res.ok) throw new Error(`Xano error: ${res.status}`);
     const data = await res.json();
-    const { practices, managers, events, feedback } = data.result ?? data;
+    const { practices, managers, feedback, clinicians = [] } = data.result ?? data;
+
+    // Cutoff: last Wednesday at 12:01pm (7 days ago)
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 7);
+    cutoff.setHours(12, 1, 0, 0);
 
     const results = await Promise.allSettled(
       practices.map(async (practice: any) => {
         const manager = managers.find((m: any) => m.practices_id === practice.id);
         if (!manager?.email) return;
 
-        const totalScans = events.filter(
-          (e: any) => e.practice_id === practice.id && e.event_type === 'qr_scan'
-        ).length;
-
-        const belowQuota = totalScans < WEEKLY_SCAN_QUOTA;
-        const remaining = WEEKLY_SCAN_QUOTA - totalScans;
-
-        const practiceFeedback = (feedback as any[])
-          .filter((f: any) =>
-            f.practice_id === practice.id &&
-            f.sentiment &&
-            f.sentiment.trim().length >= 20
-          )
-          .slice(0, 3);
-
-        const feedbackHtml = practiceFeedback.length > 0
-          ? practiceFeedback.map((f: any) => `
-              <div style="background:#F0F4F9;border-left:3px solid #00A9CE;border-radius:0 8px 8px 0;padding:14px 18px;margin-bottom:12px;">
-                <p style="margin:0 0 8px;font-style:italic;color:#425563;font-size:14px;line-height:1.6;">&ldquo;${f.sentiment.trim()}&rdquo;</p>
-                <p style="margin:0;font-size:11px;color:#768692;text-transform:uppercase;letter-spacing:0.8px;">About ${f.clinician_name ?? 'your clinician'}</p>
-              </div>`).join('')
-          : `<p style="color:#768692;font-style:italic;font-size:14px;">No new feedback this week yet — keep sharing those QR codes!</p>`;
-
-        const quotaHtml = belowQuota
-          ? `<div style="background:#FFF3E0;border:1px solid #FFB74D;border-radius:10px;padding:16px 20px;margin-bottom:24px;">
-               <p style="margin:0 0 4px;font-weight:700;color:#E65C00;font-size:14px;">⚠️ Scan quota reminder</p>
-               <p style="margin:0;font-size:13px;color:#425563;">You're at <strong>${totalScans} / ${WEEKLY_SCAN_QUOTA} scans</strong> this week. ${remaining} more scan${remaining !== 1 ? 's' : ''} to hit your weekly target — make sure your QR codes are visible in the practice!</p>
-             </div>`
-          : `<div style="background:#E8F5E9;border:1px solid #81C784;border-radius:10px;padding:16px 20px;margin-bottom:24px;">
-               <p style="margin:0 0 4px;font-weight:700;color:#2E7D32;font-size:14px;">✅ Weekly target hit!</p>
-               <p style="margin:0;font-size:13px;color:#425563;">You've hit <strong>${totalScans} scans</strong> this week — above your ${WEEKLY_SCAN_QUOTA} scan target. Great work!</p>
-             </div>`;
-
         const practiceName = practice.practice_name ?? practice.name ?? 'Your Practice';
+
+        // Filter: this practice, since cutoff, meaningful Feedbacker-native sentiment
+        const newSubmissions = (feedback as any[]).filter((f: any) =>
+          f.practice_id === practice.id &&
+          f.sentiment &&
+          f.sentiment.trim().length >= 20 &&
+          (!f.redirect_platform || f.redirect_platform === 'Feedbacker') &&
+          new Date(f.created_at) >= cutoff
+        );
+
+        // Skip practices with zero new submissions — no email sent
+        if (newSubmissions.length === 0) return;
+
+        const shown = newSubmissions.slice(0, 5);
+        const overflow = newSubmissions.length - shown.length;
+
+        const cardsHtml = shown.map((f: any, i: number) => {
+          const style = CARD_STYLES[i % CARD_STYLES.length];
+          const clinicianName =
+            f.clinician_name ??
+            (clinicians as any[]).find((c: any) => c.clinician_id === f.clinician_id)?.name ??
+            'Your Clinician';
+          return `
+            <div style="background:${style.bg};border-left:4px solid ${style.border};border-radius:0 8px 8px 0;padding:16px 20px;margin-bottom:14px;">
+              <p style="margin:0 0 10px;font-style:italic;color:#2A2A2A;font-size:14px;line-height:1.7;font-family:Georgia,serif;">&ldquo;${f.sentiment.trim()}&rdquo;</p>
+              <p style="margin:0 0 2px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:${style.label};">About ${clinicianName}</p>
+              <p style="margin:0;font-size:10px;color:rgba(0,0,0,0.38);font-style:italic;">— Patient</p>
+            </div>`;
+        }).join('');
+
+        const overflowHtml = overflow > 0
+          ? `<p style="margin:16px 0 0;font-size:13px;color:#768692;text-align:center;">...and <strong>${overflow} more response${overflow !== 1 ? 's' : ''}</strong> on your dashboard</p>`
+          : '';
 
         const html = `<!DOCTYPE html>
 <html>
@@ -73,12 +85,11 @@ export async function GET(req: Request) {
       <p style="margin:6px 0 0;font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1.5px;">NHS Patient Feedback</p>
     </div>
     <div style="padding:32px;">
-      <h1 style="margin:0 0 6px;font-size:20px;color:#003d7a;">Mid-week digest 💌</h1>
-      <p style="margin:0 0 24px;font-size:14px;color:#768692;">Here's what's happening at <strong>${practiceName}</strong></p>
-      ${quotaHtml}
-      <h2 style="font-size:15px;color:#003d7a;margin:0 0 12px;">❤️ Recent patient feedback</h2>
-      ${feedbackHtml}
-      <p style="margin:24px 0 0;font-size:13px;color:#768692;">Keep up the great work — your patients appreciate you.</p>
+      <h1 style="margin:0 0 6px;font-size:20px;color:#003d7a;">Good morning, ${manager.name} 👋</h1>
+      <p style="margin:0 0 24px;font-size:14px;color:#768692;">Here's what your patients said about your team this week</p>
+      ${cardsHtml}
+      ${overflowHtml}
+      <p style="margin:24px 0 0;font-size:13px;color:#768692;">Your patients appreciate you — keep up the great work. 💙</p>
     </div>
     <div style="padding:20px 32px;border-top:1px solid #D8E0E8;text-align:center;">
       <p style="margin:0;font-size:11px;color:#a0b0c0;">Feedbacker · NHS Patient Feedback Platform · <a href="https://feedbacker-app-m3re.vercel.app" style="color:#005EB8;text-decoration:none;">feedbacker-app-m3re.vercel.app</a></p>
@@ -90,7 +101,7 @@ export async function GET(req: Request) {
         const { error: sendError } = await resend.emails.send({
           from: 'Feedbacker <noreply@getfeedbacker.com>',
           to: manager.email,
-          subject: `💌 Your mid-week digest — ${practiceName}`,
+          subject: `💌 Your weekly feedback digest — ${practiceName}`,
           html,
         });
         if (sendError) throw new Error(`Resend: ${sendError.message}`);
