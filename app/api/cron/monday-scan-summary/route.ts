@@ -36,7 +36,7 @@ export async function GET(req: Request) {
         for (const event of practiceEvents) {
           if (!event.clinician_id) continue;
           if (!scansByClinician[event.clinician_id]) {
-            const clinician = (clinicians as any[]).find((c: any) => c.id === event.clinician_id);
+            const clinician = (clinicians as any[]).find((c: any) => c.clinician_id === event.clinician_id);
             scansByClinician[event.clinician_id] = { name: clinician?.name ?? event.clinician_name ?? event.clinician_id, count: 0 };
           }
           scansByClinician[event.clinician_id].count += 1;
