@@ -20,7 +20,7 @@ export async function GET(req: Request) {
     });
     if (!res.ok) throw new Error(`Xano error: ${res.status}`);
     const data = await res.json();
-    const { practices, managers, events } = data.result ?? data;
+    const { practices, managers, events, clinicians = [] } = data.result ?? data;
 
     const results = await Promise.allSettled(
       practices.map(async (practice: any) => {
@@ -36,7 +36,8 @@ export async function GET(req: Request) {
         for (const event of practiceEvents) {
           if (!event.clinician_id) continue;
           if (!scansByClinician[event.clinician_id]) {
-            scansByClinician[event.clinician_id] = { name: event.clinician_name ?? event.clinician_id, count: 0 };
+            const clinician = (clinicians as any[]).find((c: any) => c.id === event.clinician_id);
+            scansByClinician[event.clinician_id] = { name: clinician?.name ?? event.clinician_name ?? event.clinician_id, count: 0 };
           }
           scansByClinician[event.clinician_id].count += 1;
         }
