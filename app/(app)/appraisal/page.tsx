@@ -126,10 +126,12 @@ export default function AppraisalPage() {
       .then(async (res) => {
         if (!res.ok) throw new Error(`Failed to load (${res.status})`);
         const json = await res.json();
-        console.log("[fetchAppraisal] raw response:", JSON.stringify(json, null, 2));
-        console.log("[fetchAppraisal] scores:", json?.scores ?? json?.dashboard_data?.scores);
-        console.log("[fetchAppraisal] total_responses:", json?.total_responses ?? json?.dashboard_data?.total_responses);
-        setRaw(json);
+        // Unwrap Xano envelope — response may be { result: { ... } } or flat
+        const data = json?.result ?? json;
+        console.log("[fetchAppraisal] raw response:", JSON.stringify(data, null, 2));
+        console.log("[fetchAppraisal] scores:", data?.scores ?? data);
+        console.log("[fetchAppraisal] total_responses:", data?.total_responses);
+        setRaw(data);
       })
       .catch((e: Error) => setError(e.message))
       .finally(() => {
@@ -153,7 +155,8 @@ export default function AppraisalPage() {
   }, [isPM, selectedId, fetchAppraisal]);
 
   // ── Derived values ──────────────────────────────────────────────────────
-  const scores       = raw?.scores ?? {};
+  // Scores may be nested under a `scores` key or flat at the top level
+  const scores       = raw?.scores ?? (raw as Record<string, number | null> | null) ?? {};
   const totalRaw     = raw?.total_responses;
   const totalLabel   = totalRaw != null ? String(totalRaw) : "—";
   const overallScore = scores["overall_average"];
