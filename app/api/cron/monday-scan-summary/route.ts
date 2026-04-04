@@ -51,7 +51,7 @@ export async function GET(req: Request) {
                 <td style="padding:10px 16px;color:#425563;">${c.name}</td>
                 <td style="padding:10px 16px;font-weight:700;color:#005EB8;">${c.count} scans</td>
               </tr>`).join('')
-          : `<tr><td colspan="3" style="padding:10px 16px;color:#768692;font-style:italic;">No scan data yet this week</td></tr>`;
+          : `<tr><td colspan="3" style="padding:10px 16px;color:#768692;font-style:italic;">No scan data yet last week</td></tr>`;
 
         const practiceName = practice.practice_name ?? practice.name ?? 'Your Practice';
 
@@ -70,7 +70,7 @@ export async function GET(req: Request) {
         <p style="margin:0 0 4px;font-size:13px;color:#768692;text-transform:uppercase;letter-spacing:1px;">Total QR Scans — Past 7 Days</p>
         <p style="margin:0;font-size:48px;font-weight:700;color:#005EB8;">${totalScans}</p>
       </div>
-      <h2 style="font-size:15px;color:#003d7a;margin:0 0 12px;">🏆 Top Performers This Week</h2>
+      <h2 style="font-size:15px;color:#003d7a;margin:0 0 12px;">🏆 Top Performers Last Week</h2>
       <table style="width:100%;border-collapse:collapse;border-radius:8px;overflow:hidden;border:1px solid #D8E0E8;">
         <thead>
           <tr style="background:#F0F4F9;">
