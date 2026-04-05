@@ -786,8 +786,12 @@ export default function CliniciansPage() {
   const [loading,       setLoading]       = useState(true);
   const [roomsLoading,  setRoomsLoading]  = useState(true);
   const [error,         setError]         = useState("");
-  const [showModal,     setShowModal]     = useState(false);
-  const [toast,         setToast]         = useState("");
+  const [showModal,       setShowModal]       = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteUrl,       setInviteUrl]       = useState("");
+  const [inviteLoading,   setInviteLoading]   = useState(false);
+  const [inviteCopied,    setInviteCopied]    = useState(false);
+  const [toast,           setToast]           = useState("");
   const [copiedId,      setCopiedId]      = useState("");
   const [toggle,        setToggle]        = useState<TimeToggle>("month");
   const [addingRoom,    setAddingRoom]    = useState(false);
@@ -796,6 +800,23 @@ export default function CliniciansPage() {
   function showToast(msg: string) {
     setToast(msg);
     setTimeout(() => setToast(""), 3000);
+  }
+
+  async function handleGenerateInvite() {
+    setInviteLoading(true);
+    try {
+      const res = await dashApi.generateInviteToken();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data as { message?: string })?.message ?? `Failed (${res.status})`);
+      const token = (data as { token?: string })?.token ?? (data as { invite_token?: string })?.invite_token ?? "";
+      setInviteUrl(`https://feedbacker-app-m3re.vercel.app/join?token=${token}`);
+      setInviteCopied(false);
+      setShowInviteModal(true);
+    } catch (e: unknown) {
+      showToast(e instanceof Error ? e.message : "Could not generate invite link");
+    } finally {
+      setInviteLoading(false);
+    }
   }
 
   function showCopied(id: string) {
@@ -974,10 +995,16 @@ export default function CliniciansPage() {
           <h1 className="text-2xl font-bold text-nhs-blue-dark">Clinician Profiles</h1>
           <p className="text-sm text-slate-light mt-0.5">Manage your practice clinicians and their feedback setup</p>
         </div>
-        <button onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 bg-nhs-blue text-white text-sm font-semibold px-4 py-2.5 rounded-xl hover:bg-nhs-blue-dark active:scale-[0.98] transition-all shadow-md whitespace-nowrap">
-          <span className="text-lg leading-none">+</span> Add Clinician
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={handleGenerateInvite} disabled={inviteLoading}
+            className="flex items-center gap-2 bg-white border border-border text-nhs-blue text-sm font-semibold px-4 py-2.5 rounded-xl hover:border-nhs-blue hover:bg-nhs-blue/5 active:scale-[0.98] disabled:opacity-60 transition-all shadow-sm whitespace-nowrap">
+            <span className="text-base leading-none">🔗</span> {inviteLoading ? "Generating…" : "Invite via Link"}
+          </button>
+          <button onClick={() => setShowModal(true)}
+            className="flex items-center gap-2 bg-nhs-blue text-white text-sm font-semibold px-4 py-2.5 rounded-xl hover:bg-nhs-blue-dark active:scale-[0.98] transition-all shadow-md whitespace-nowrap">
+            <span className="text-lg leading-none">+</span> Add Clinician
+          </button>
+        </div>
       </div>
 
       {/* Time toggle */}
@@ -1239,6 +1266,51 @@ export default function CliniciansPage() {
           )}
         </div>
       </div>
+
+      {/* Invite via Link Modal */}
+      {showInviteModal && (
+        <>
+          <div className="fixed inset-0 bg-black/40 z-40 backdrop-blur-sm" onClick={() => setShowInviteModal(false)} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-[14px] w-full max-w-md shadow-2xl overflow-hidden">
+              <div className="px-6 py-5 border-b border-border"
+                style={{ background: "linear-gradient(135deg,#005EB8 0%,#003d7a 100%)" }}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-white font-bold text-lg">Invite a Clinician</h2>
+                    <p className="text-white/60 text-xs mt-0.5">Send a self-registration link</p>
+                  </div>
+                  <button onClick={() => setShowInviteModal(false)} className="text-white/60 hover:text-white text-2xl leading-none">×</button>
+                </div>
+              </div>
+              <div className="p-6 space-y-4">
+                <p className="text-sm text-slate leading-relaxed">
+                  Share this link with your clinician. It expires in <span className="font-semibold text-nhs-blue-dark">7 days</span> and can only be used once.
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    readOnly
+                    value={inviteUrl}
+                    className="flex-1 rounded-lg border border-border bg-off-white px-3 py-2.5 text-xs text-slate font-mono focus:outline-none select-all"
+                    onFocus={(e) => e.target.select()}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(inviteUrl).then(() => {
+                        setInviteCopied(true);
+                        setTimeout(() => setInviteCopied(false), 2000);
+                      });
+                    }}
+                    className="flex-shrink-0 px-4 py-2.5 rounded-lg bg-nhs-blue text-white text-sm font-semibold hover:bg-nhs-blue-dark transition-colors shadow-md whitespace-nowrap">
+                    {inviteCopied ? "Copied! ✓" : "Copy Link"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Add Clinician Modal */}
       {showModal && (

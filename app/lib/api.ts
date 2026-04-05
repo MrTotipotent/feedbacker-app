@@ -300,6 +300,24 @@ export const dashApi = {
     return apiFetch(`${DASH_API}/get_event_counts?${p}`);
   },
 
+  generateInviteToken: () =>
+    apiFetch(`${DASH_API}${DASH_PREFIX}/generate_invite_token`, { method: "POST" }),
+
+  registerClinician: (data: {
+    token: string;
+    name: string;
+    email: string;
+    role: string;
+    platform: string;
+    custom_feedback_url?: string;
+    rotation_start?: string;
+    rotation_end?: string;
+  }) =>
+    apiFetch(`${DASH_API}${DASH_PREFIX}/register_clinician`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }, false),
+
   /** Permanently removes a clinician record from Xano.
    *  Expects the Xano integer primary key (id field), not clinician_id string. */
   deleteClinician: (id: number) =>
