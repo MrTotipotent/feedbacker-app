@@ -94,10 +94,20 @@ export default function RoomLandingPage({
   useEffect(() => { fetchRoom(); }, [fetchRoom]);
 
   // ── Continue from Step 1 → Step 2 ─────────────────────────────────────────
-  function handleContinue() {
-    // NOTE: createQuickFeedback intentionally removed — the POST was returning
-    // 404 and appearing in the browser console while the user was on Step 2,
-    // making it appear as if Button 1 was triggering an API call.
+  async function handleContinue() {
+    if (sentiment.trim().length >= 3 && room) {
+      try {
+        await surveyApi.logEvent(
+          "sentiment",
+          room.id,
+          clinician?.clinician_id ?? "",
+          room.practice_id,
+          sentiment.trim()
+        );
+      } catch (e) {
+        // non-blocking — proceed regardless
+      }
+    }
     setStep(2);
   }
 

@@ -93,10 +93,10 @@ export const surveyApi = {
     surveyFetch(`${SURVEY_API}/get_room?room_id=${room_id}`),
 
   /** Fire-and-forget event logger for room analytics */
-  logEvent: (event_type: string, room_id: number, clinician_id: string, practice_id: number) =>
+  logEvent: (event_type: string, room_id: number, clinician_id: string, practice_id: number, sentiment?: string) =>
     surveyFetch(`${SURVEY_API}/log_event`, {
       method: "POST",
-      body: JSON.stringify({ event_type, room_id, clinician_id, practice_id }),
+      body: JSON.stringify({ event_type, room_id, clinician_id, practice_id, ...(sentiment ? { sentiment } : {}) }),
     }),
 };
 
