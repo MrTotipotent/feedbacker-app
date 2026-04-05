@@ -176,6 +176,8 @@ export const dashApi = {
 
   getReviews: () => apiFetch(`${DASH_API}${DASH_PREFIX}/get_reviews`),
 
+  getSentimentEvents: () => apiFetch(`${DASH_API}${DASH_PREFIX}/get_sentiment_events`),
+
   getCqc: (params?: { from?: string; to?: string }) => {
     const q = new URLSearchParams(
       Object.fromEntries(

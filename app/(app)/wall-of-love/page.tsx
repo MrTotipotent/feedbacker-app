@@ -6,11 +6,9 @@ import { dashApi } from "@/app/lib/api";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Submission {
-  id?: number;
   clinician_name?: string;
   created_at: string;
   sentiment?: string | null;
-  redirect_platform?: string | null;
 }
 
 interface CardData {
@@ -64,7 +62,7 @@ export default function WallOfLovePage() {
     async function load() {
       try {
         const [revRes, pracRes] = await Promise.all([
-          dashApi.getReviews(),
+          dashApi.getSentimentEvents(),
           dashApi.getPractice(),
         ]);
 
@@ -81,19 +79,16 @@ export default function WallOfLovePage() {
         const raw = await revRes.json();
         const subs: Submission[] = Array.isArray(raw) ? raw : [];
 
-        // Keep Feedbacker-native submissions with meaningful sentiment (≥3 chars)
+        // Keep events with meaningful sentiment (≥3 chars)
         const valid = subs.filter(
-          (s) =>
-            s.sentiment &&
-            s.sentiment.trim().length >= 3 &&
-            (!s.redirect_platform || s.redirect_platform.toLowerCase() === "feedbacker")
+          (s) => s.sentiment && s.sentiment.trim().length >= 3
         );
 
         // Shuffle order randomly so the board always looks fresh
         const shuffled = [...valid].sort(() => Math.random() - 0.5);
 
         const built: CardData[] = shuffled.map((s, i) => ({
-          id: `${s.id ?? i}-wol`,
+          id: `${s.created_at ?? i}-wol`,
           quote: s.sentiment!.trim(),
           clinicianName: s.clinician_name ?? "Your Clinician",
           colorIdx: i % PALETTE.length,
