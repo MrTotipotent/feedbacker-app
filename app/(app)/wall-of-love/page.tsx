@@ -50,6 +50,7 @@ export default function WallOfLovePage() {
   const [practiceName, setPracticeName] = useState("Your Practice");
   const [isShuffling, setIsShuffling]   = useState(false);
   const [draggingId, setDraggingId]     = useState<string | null>(null);
+  const [timeRange, setTimeRange]       = useState<"week" | "month" | "all">("month");
 
   // drag tracking ref — avoids stale closure issues in mousemove handler
   const dragRef = useRef<{
@@ -59,10 +60,12 @@ export default function WallOfLovePage() {
   // ── Load ────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
+    setLoading(true);
+    setError("");
     async function load() {
       try {
         const [revRes, pracRes] = await Promise.all([
-          dashApi.getSentimentEvents(),
+          dashApi.getSentimentEvents(timeRange),
           dashApi.getPractice(),
         ]);
 
@@ -79,9 +82,18 @@ export default function WallOfLovePage() {
         const raw = await revRes.json();
         const subs: Submission[] = Array.isArray(raw) ? raw : [];
 
-        // Keep events with meaningful sentiment (≥3 chars)
+        // Client-side date filter
+        const now = Date.now();
+        const cutoff =
+          timeRange === "week"  ? now - 7  * 24 * 60 * 60 * 1000 :
+          timeRange === "month" ? now - 30 * 24 * 60 * 60 * 1000 : 0;
+
+        // Keep events with meaningful sentiment (≥3 chars) within the time window
         const valid = subs.filter(
-          (s) => s.sentiment && s.sentiment.trim().length >= 3
+          (s) =>
+            s.sentiment &&
+            s.sentiment.trim().length >= 3 &&
+            (cutoff === 0 || new Date(s.created_at).getTime() >= cutoff)
         );
 
         // Shuffle order randomly so the board always looks fresh
@@ -109,7 +121,7 @@ export default function WallOfLovePage() {
       }
     }
     load();
-  }, []);
+  }, [timeRange]);
 
   // ── Shuffle ─────────────────────────────────────────────────────────────────
 
@@ -233,6 +245,27 @@ export default function WallOfLovePage() {
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
+
+              {/* Time range toggle */}
+              <div className="flex rounded-lg border border-border overflow-hidden">
+                {(["week", "month", "all"] as const).map((r) => {
+                  const label = r === "week" ? "1 Week" : r === "month" ? "1 Month" : "All Time";
+                  const active = timeRange === r;
+                  return (
+                    <button
+                      key={r}
+                      onClick={() => setTimeRange(r)}
+                      className={`text-sm font-semibold px-3 py-1.5 transition-colors
+                        ${active
+                          ? "bg-nhs-blue text-white"
+                          : "bg-white text-slate hover:bg-nhs-blue/5 hover:text-nhs-blue"
+                        }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
 
               {/* Clinician filter */}
               <select
