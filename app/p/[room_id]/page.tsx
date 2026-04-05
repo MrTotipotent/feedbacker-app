@@ -97,14 +97,25 @@ export default function RoomLandingPage({
   async function handleContinue() {
     if (sentiment.trim().length >= 3 && room) {
       try {
-        await surveyApi.logEvent(
+        console.log('[sentiment] calling logEvent with:', {
+          event_type: 'sentiment',
+          room_id: room?.id,
+          clinician_id: clinician?.clinician_id,
+          practice_id: room?.practice_id,
+          sentiment: sentiment.trim()
+        });
+        const result = await surveyApi.logEvent(
           "sentiment",
           room.id,
           clinician?.clinician_id ?? "",
           room.practice_id,
           sentiment.trim()
         );
+        console.log('[sentiment] logEvent response status:', result.status, result.ok);
+        const body = await result.clone().json().catch(() => '(non-JSON)');
+        console.log('[sentiment] logEvent response body:', body);
       } catch (e) {
+        console.log('[sentiment] logEvent error:', e);
         // non-blocking — proceed regardless
       }
     }
