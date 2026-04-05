@@ -56,7 +56,7 @@ export async function GET(req: Request) {
         );
 
         const sentiments = (sentiment_events as any[]).filter((e: any) =>
-          String(e.practice_id) === String(practice.id) &&
+          String(e.practices_id) === String(practice.id) &&
           e.sentiment &&
           e.sentiment.trim().length >= 3 &&
           e.created_at > cutoff
