@@ -128,7 +128,7 @@ export async function GET(req: Request) {
 </body>
 </html>`;
 
-        console.log(`[wednesday-digest] Sending to ${practiceName} (${manager.email}) — ${newSubmissions.length} submission(s)`);
+        console.log(`[wednesday-digest] Sending to ${practiceName} (${manager.email}) — ${sentiments.length} sentiment(s)`);
         const { error: sendError } = await resend.emails.send({
           from: 'Feedbacker <noreply@getfeedbacker.com>',
           to: manager.email,
