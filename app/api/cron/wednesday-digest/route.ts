@@ -54,8 +54,7 @@ export async function GET(req: Request) {
         const newSubmissions = (feedback as any[]).filter((f: any) =>
           String(f.practices_id) === String(practice.id) &&
           f.sentiment &&
-          f.sentiment.trim().length >= 3 &&
-          (!f.redirect_platform || f.redirect_platform === 'Feedbacker')
+          f.sentiment.trim().length >= 3
         );
         console.log(`[wednesday-digest] practice ${practice.id} (${practiceName}): ${newSubmissions.length} matching submissions`);
 
