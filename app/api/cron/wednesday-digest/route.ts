@@ -98,13 +98,10 @@ export async function GET(req: Request) {
           <div style="margin-top:28px;padding-top:24px;border-top:1px solid #D8E0E8;">
             <h2 style="font-size:15px;color:#003d7a;margin:0 0 4px;">📊 Scan Progress This Week</h2>
             <p style="margin:0 0 14px;font-size:13px;color:#768692;">${totalScans} / ${SCAN_TARGET} scans this week</p>
-            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:12px;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:12px;border-radius:6px;overflow:hidden;">
               <tr>
-                <td style="background:#F0F4F9;border-radius:6px;overflow:hidden;height:10px;padding:0;">
-                  <table width="${scanPct}%" cellpadding="0" cellspacing="0">
-                    <tr><td style="background:${barColor};height:10px;border-radius:6px;font-size:0;">&nbsp;</td></tr>
-                  </table>
-                </td>
+                <td width="${scanPct}%" style="background:${barColor};height:10px;font-size:0;">&nbsp;</td>
+                <td style="background:#F0F4F9;height:10px;font-size:0;">&nbsp;</td>
               </tr>
             </table>
             <p style="margin:0;font-size:13px;color:#425563;font-weight:600;">${scanStatus}</p>
