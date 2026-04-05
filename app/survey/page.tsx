@@ -3,8 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { surveyApi, dashApi } from "@/app/lib/api";
-import { getToken } from "@/app/lib/auth";
+import { surveyApi } from "@/app/lib/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -150,19 +149,12 @@ function SurveyInner() {
     setSubmitErr("");
     setSubmitting(true);
     try {
-      const score_overall = (
-        ratings.ease + ratings.listening + ratings.involving + ratings.explaining +
-        ratings.empathy + ratings.confidence + ratings.trust + ratings.futureplan +
-        ratings.escalation + ratings.recommendation
-      ) / 10;
-
       const payload: Record<string, unknown> = {
         clinician_id:      clinicianId,
         sentiment:         sentimentParam, // Step-1 text from /p/[practice_id]; "" when opened directly
         ...Object.fromEntries(
           Object.entries(ratings).map(([k, v]) => [`score_${k}`, Number(v)])
         ),
-        score_overall,
         comment_clinician: clinicianComment.trim() || null,
       };
       const res = await surveyApi.createSubmission(payload);
@@ -171,24 +163,6 @@ function SurveyInner() {
         throw new Error(data?.message ?? `Submission failed (${res.status})`);
       }
       setSubmitted(true);
-
-      // Fire-and-forget profile recalculation — only when a clinician/PM
-      // is logged in (token present). Never blocks the patient flow.
-      if (getToken()) {
-        console.log("[recalculate_profile] attempting — token present, firing POST");
-        void (async () => {
-          try {
-            const r = await dashApi.recalculateProfile();
-            const body = await r.json().catch(() => "(non-JSON body)");
-            console.log("[recalculate_profile] response status:", r.status, r.ok ? "OK" : "FAIL");
-            console.log("[recalculate_profile] response body:", body);
-          } catch (err) {
-            console.error("[recalculate_profile] fetch error:", err);
-          }
-        })();
-      } else {
-        console.log("[recalculate_profile] skipped — no auth token in localStorage");
-      }
     } catch (e: unknown) {
       setSubmitErr(e instanceof Error ? e.message : "Something went wrong. Please try again.");
     } finally {
