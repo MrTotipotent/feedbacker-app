@@ -29,7 +29,8 @@ export async function GET(req: Request) {
     });
     if (!res.ok) throw new Error(`Xano error: ${res.status}`);
     const data = await res.json();
-    const { practices, managers, events, feedback, clinicians = [], sentiment_events = [] } = data.result ?? data;
+    const { practices, managers, events, feedback, clinicians } = data.result ?? data;
+    const sentiment_events = (events ?? []).filter((e: any) => e.event_type === 'sentiment');
     console.log('[wednesday-digest] sentiment_events total:', sentiment_events.length);
     console.log('[wednesday-digest] sentiment_events[0]:', JSON.stringify(sentiment_events[0]));
 
