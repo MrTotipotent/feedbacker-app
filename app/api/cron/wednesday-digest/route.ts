@@ -29,7 +29,7 @@ export async function GET(req: Request) {
     });
     if (!res.ok) throw new Error(`Xano error: ${res.status}`);
     const data = await res.json();
-    const { practices, managers, events, feedback, clinicians = [] } = data.result ?? data;
+    const { practices, managers, events, feedback, clinicians = [], sentiment_events = [] } = data.result ?? data;
 
     // Diagnostic logging — remove once field names are confirmed
     console.log('[wednesday-digest] Xano response top-level keys:', JSON.stringify(Object.keys(data.result ?? data)));
@@ -49,30 +49,28 @@ export async function GET(req: Request) {
 
         const practiceName = practice.practice_name ?? practice.name ?? 'Your Practice';
 
-        // TODO: restore 7-day cutoff filter for production
-        // Filter: this practice, meaningful Feedbacker-native sentiment (date cutoff temporarily removed)
-        const newSubmissions = (feedback as any[]).filter((f: any) =>
-          String(f.practices_id) === String(practice.id) &&
-          f.sentiment &&
-          f.sentiment.trim().length >= 3
+        const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+
+        const sentiments = (sentiment_events as any[]).filter((e: any) =>
+          String(e.practice_id) === String(practice.id) &&
+          e.sentiment &&
+          e.sentiment.trim().length >= 3 &&
+          e.created_at > cutoff
         );
-        console.log(`[wednesday-digest] practice ${practice.id} (${practiceName}): ${newSubmissions.length} matching submissions`);
+        console.log(`[wednesday-digest] practice ${practice.id} (${practiceName}): ${sentiments.length} sentiment events`);
 
-        // Skip practices with zero new submissions — no email sent
-        if (newSubmissions.length === 0) return 'skipped';
+        // Skip practices with zero sentiment events — no email sent
+        if (sentiments.length === 0) return 'skipped';
 
-        const shown = newSubmissions.slice(0, 5);
-        const overflow = newSubmissions.length - shown.length;
+        const shown = sentiments.slice(0, 5);
+        const overflow = sentiments.length - shown.length;
 
-        const cardsHtml = shown.map((f: any, i: number) => {
+        const cardsHtml = shown.map((e: any, i: number) => {
           const style = CARD_STYLES[i % CARD_STYLES.length];
-          const clinicianName =
-            f.clinician_name ??
-            (clinicians as any[]).find((c: any) => c.clinician_id === f.clinician_id)?.name ??
-            'Your Clinician';
+          const clinicianName = e.clinician_name ?? 'Your Clinician';
           return `
             <div style="background:${style.bg};border-left:4px solid ${style.border};border-radius:0 8px 8px 0;padding:16px 20px;margin-bottom:14px;">
-              <p style="margin:0 0 10px;font-style:italic;color:#2A2A2A;font-size:14px;line-height:1.7;font-family:Georgia,serif;">&ldquo;${f.sentiment.trim()}&rdquo;</p>
+              <p style="margin:0 0 10px;font-style:italic;color:#2A2A2A;font-size:14px;line-height:1.7;font-family:Georgia,serif;">&ldquo;${e.sentiment.trim()}&rdquo;</p>
               <p style="margin:0 0 2px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:${style.label};">About ${clinicianName}</p>
               <p style="margin:0;font-size:10px;color:rgba(0,0,0,0.38);font-style:italic;">— Patient</p>
             </div>`;
