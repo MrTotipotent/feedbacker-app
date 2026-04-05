@@ -51,6 +51,10 @@ export async function GET(req: Request) {
 
         const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
 
+        console.log(`[wednesday-digest] practice ${practice.id} sentiment_events sample:`,
+          (sentiment_events as any[]).slice(0, 2).map((e: any) => ({ practice_id: e.practice_id, typeof: typeof e.practice_id }))
+        );
+
         const sentiments = (sentiment_events as any[]).filter((e: any) =>
           String(e.practice_id) === String(practice.id) &&
           e.sentiment &&
