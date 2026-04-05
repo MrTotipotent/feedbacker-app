@@ -74,7 +74,9 @@ export async function GET(req: Request) {
 
         const cardsHtml = shown.map((e: any, i: number) => {
           const style = CARD_STYLES[i % CARD_STYLES.length];
-          const clinicianName = e.clinician_name ?? 'Your Clinician';
+          const clinicianName = clinicians.find(
+            (c: any) => c.clinician_id === e.clinician_id
+          )?.name ?? 'Your Clinician';
           return `
             <div style="background:${style.bg};border-left:4px solid ${style.border};border-radius:0 8px 8px 0;padding:16px 20px;margin-bottom:14px;">
               <p style="margin:0 0 10px;font-style:italic;color:#2A2A2A;font-size:14px;line-height:1.7;font-family:Georgia,serif;">&ldquo;${e.sentiment.trim()}&rdquo;</p>
