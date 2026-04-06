@@ -300,7 +300,7 @@ export default function SettingsPage() {
 
           {/* Google Review URL — standard feature, no gate */}
           <div>
-            <label className={labelCls}>Google Review URL</label>
+            <label className={labelCls}>Google Review URL <span className="text-xs font-normal text-slate-400">(optional)</span></label>
             <input
               type="url"
               value={googleUrl}
