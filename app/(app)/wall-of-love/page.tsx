@@ -80,6 +80,9 @@ export default function WallOfLovePage() {
         }
 
         const raw = await revRes.json();
+        console.log('[WOL] raw response:', JSON.stringify(raw));
+        console.log('[WOL] is array:', Array.isArray(raw));
+        console.log('[WOL] length:', Array.isArray(raw) ? raw.length : 'N/A');
         const subs: Submission[] = Array.isArray(raw) ? raw : [];
 
         // Client-side date filter
