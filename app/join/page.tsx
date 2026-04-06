@@ -9,7 +9,7 @@ import { dashApi } from "@/app/lib/api";
 
 type Platform = "Feedbacker" | "14Fish" | "Clarity/Custom";
 
-const ROLES = ["GP", "Practice Nurse", "Pharmacist", "Physiotherapist", "Paramedic", "Other"] as const;
+const ROLES = ["GP", "Nurse", "Reception", "Admin", "Pharmacist", "Physiotherapist", "Paramedic", "Other"] as const;
 
 const PLATFORMS: Platform[] = ["Feedbacker", "14Fish", "Clarity/Custom"];
 
